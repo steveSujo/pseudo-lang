@@ -5,6 +5,8 @@ use std::{
     path::PathBuf,
 };
 
+use psudo::{lexer::Lexer, tokens::Token};
+
 #[derive(Default)]
 struct Config {
     is_interactive: bool,
@@ -19,7 +21,6 @@ struct Config {
 //         }
 //     }
 // }
-
 fn main() {
     let mut program_conf: Config = Config::default();
 
@@ -71,10 +72,38 @@ fn print_help() {
 "
     )
 }
+
+fn run_file(path: PathBuf) {
+    println!("from run file {}", path.display());
+
+    let source = fs::read_to_string(path).expect("Could not open file");
+
+    run(source);
+
+    // TODO: had_error
 }
 
+fn run_prompt() {
+    loop {
+        let mut line = String::new();
+        println!(">>");
+        io::stdin().read_line(&mut line).expect("fail to read line");
 
+        if line.is_empty() || line == "\n" {
+            break;
+        };
 
+        run(line)
+    }
+}
 
+fn run(source: String) {
+    print!("\n{source}");
 
+    let mut lexer = Lexer::new(source);
+    let token_list = lexer.scan_tokens();
+
+    for token in token_list {
+        println!("{}", token);
+    }
 }
