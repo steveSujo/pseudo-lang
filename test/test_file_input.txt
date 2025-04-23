@@ -1,1 +1,34 @@
+//Single char
 (){},.-+;/*
+//expet error
+&
+//multi char operator
+== != <= >=
+
+//string
+"Hello world"
+
+//numbers
+12
+3.14
+
+//Identifiers
+num
+_num
+
+//Keywords
+and
+class
+else
+false
+fun
+for
+if
+nil
+or
+print
+return
+this
+true
+let
+while

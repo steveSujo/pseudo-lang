@@ -74,13 +74,11 @@ fn print_help() {
 }
 
 fn run_file(path: PathBuf) {
-    println!("from run file {}", path.display());
+    println!("\nfrom run file {}\n", path.display());
 
     let source = fs::read_to_string(path).expect("Could not open file");
 
     run(source);
-
-    // TODO: had_error
 }
 
 fn run_prompt() {
@@ -98,9 +96,7 @@ fn run_prompt() {
 }
 
 fn run(source: String) {
-    print!("\n{source}");
-
-    let mut lexer = Lexer::new(source);
+    let mut lexer = Lexer::new(source.trim().to_owned());
     let token_list = lexer.scan_tokens();
 
     for token in token_list {
