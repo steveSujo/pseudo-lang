@@ -1,8 +1,6 @@
 
 # Pseudo lang
 
-===========================================================
-
 I've been tinkering with the idea of creating a programming language for a while now, and Pseudo is the result of that exploration. It's not a finished product, and it's not intended to be a production-ready language. It's simply a collection of code that represents my attempt to understand the inner workings of programming languages.
 
 # What is Pseudo?
@@ -15,8 +13,7 @@ Pseudo is an experimental programming language that I've been working on in my s
 
 ### Requirements
 
-* Rustc
-* Cargo
+  * `rust`/`cargo` version 1.82.0
   
 clone this repo and cd into it then
 
@@ -29,7 +26,7 @@ cargo run
 
 The project is still in its early stages, and there's a lot of work to be done. The current roadmap includes:
 
-- [ ] Lexical analysis
+- [x] Lexical analysis
 - [ ] Parsing the Tokens
 - [ ] Static analysis
 - [ ] Read Evaluate Print Loop (REPL)
