@@ -1,11 +1,16 @@
 use std::{
+    boxed,
     env::{self, Args},
     fs::{self},
     io,
     path::PathBuf,
 };
 
-use psudo::{lexer::Lexer, tokens::Token};
+use psudo::{
+    lexer::Lexer,
+    parser::{Expression, ExpressionVistor, PrettyPrint},
+    tokens::{LiteralType, Token, TokenType},
+};
 
 #[derive(Default)]
 struct Config {
@@ -91,7 +96,8 @@ fn run_prompt() {
             break;
         };
 
-        run(line)
+        // run(line)
+        debug_exp_print()
     }
 }
 
@@ -102,4 +108,29 @@ fn run(source: String) {
     for token in token_list {
         println!("{}", token);
     }
+}
+
+fn debug_exp_print() {
+    let op_plus = Token::new(TokenType::PLUS, "+".to_string(), None, 0);
+    let op_minus = Token::new(TokenType::MINUS, "-".to_string(), None, 0);
+    let a_token = Token::new(
+        TokenType::NUMBER,
+        "1".to_string(),
+        Some(LiteralType::Number(1.0)),
+        0,
+    );
+    let b_token = Token::new(
+        TokenType::NUMBER,
+        "1".to_string(),
+        Some(LiteralType::Number(1.0)),
+        0,
+    );
+
+    let b_exp = Box::new(Expression::Grouping(Box::new(Expression::Unary(
+        op_minus,
+        Box::new(Expression::Literal(b_token)),
+    ))));
+    let exp = Expression::Binary(Box::new(Expression::Literal(a_token)), op_plus, b_exp);
+
+    println!("{}", PrettyPrint.vist_expr(exp));
 }

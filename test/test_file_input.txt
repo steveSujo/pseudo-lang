@@ -1,34 +1,36 @@
 //Single char
-(){},.-+;/*
+//(){},.-+;/*
 //expet error
-&
+//&
 //multi char operator
-== != <= >=
+//== != <= >=
 
 //string
-"Hello world"
+//"Hello world"
 
 //numbers
-12
-3.14
+//12
+//3.14
 
 //Identifiers
-num
-_num
+//num
+//_num
 
 //Keywords
-and
-class
-else
-false
-fun
-for
-if
-nil
-or
-print
-return
-this
-true
-let
-while
+//and
+//class
+//else
+//false
+//fun
+//for
+//if
+//nil
+//or
+//print
+//return
+//this
+//true
+//let
+//while
+
+1+2
