@@ -1,5 +1,4 @@
 use std::{
-    boxed,
     env::{self, Args},
     fs::{self},
     io,
@@ -8,7 +7,7 @@ use std::{
 
 use psudo::{
     lexer::Lexer,
-    parser::{Expression, ExpressionVistor, PrettyPrint},
+    parser::{Expression, ExpressionVistor, Parser, PrettyPrint},
     tokens::{LiteralType, Token, TokenType},
 };
 
@@ -96,17 +95,25 @@ fn run_prompt() {
             break;
         };
 
-        // run(line)
-        debug_exp_print()
+        run(line)
+        // debug_exp_print()
     }
 }
 
 fn run(source: String) {
     let mut lexer = Lexer::new(source.trim().to_owned());
-    let token_list = lexer.scan_tokens();
-
-    for token in token_list {
-        println!("{}", token);
+    let token_list_result = lexer.scan_tokens();
+    match token_list_result {
+        Ok(token_list) => {
+            // for token in token_list {
+            //     println!("{}", token);
+            // }
+            let _ = Parser::new(token_list)
+                .expression()
+                .map(|exp| println!("{}", PrettyPrint.vist_expr(exp)))
+                .map_err(|er| println!("{}", er));
+        }
+        Err(_) => todo!(),
     }
 }
 

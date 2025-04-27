@@ -1,11 +1,11 @@
-mod error_handler;
-mod lexer;
-mod parser;
+pub mod error_handler;
+pub mod lexer;
+pub mod parser;
 
 pub mod tokens {
     use std::fmt::{self, Display};
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum LiteralType {
         String(String),
         Number(f32),
@@ -20,7 +20,7 @@ pub mod tokens {
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum TokenType {
         //single char
         LeftPara,
@@ -71,7 +71,7 @@ pub mod tokens {
     //         write!(f, "{}", self)
     //     }
     // }
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Token {
         pub token_type: TokenType,
         pub text: String,

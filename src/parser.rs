@@ -1,11 +1,12 @@
 use std::{iter::Peekable, vec::IntoIter};
 
 use crate::{
-    error_handler::ErrorSet,
+    error_handler::Errors,
     lexer::Lexer,
     tokens::{self, LiteralType, Token, TokenType},
 };
 
+#[derive(Debug)]
 pub enum Expression {
     Binary(Box<Expression>, Token, Box<Expression>),
     Unary(Token, Box<Expression>),
@@ -77,39 +78,35 @@ impl ExpressionVistor<String> for PrettyPrint {
     }
 }
 
-struct Parser {
+pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
-    error_set: ErrorSet,
-    current: usize,
 }
 
 impl Parser {
-    fn new(lexer: Lexer) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Parser {
-            tokens: lexer.token_list.into_iter().peekable(),
-            error_set: lexer.error_set,
-            current: 0,
+            tokens: tokens.into_iter().peekable(),
         }
     }
 
-    fn expression(&mut self) -> Expression {
-        return self.eqality();
+    pub fn expression(&mut self) -> Result<Expression, Errors> {
+        return Ok(self.eqality()?);
     }
 
-    fn eqality(&mut self) -> Expression {
-        let mut exp: Expression = self.comp();
+    fn eqality(&mut self) -> Result<Expression, Errors> {
+        let mut exp: Expression = self.comp()?;
 
         while let Some(token) = self.tokens.next_if(|token| {
             [TokenType::BangEqual, TokenType::EqualEqual].contains(&token.token_type)
         }) {
-            let expr_right = self.comp();
+            let expr_right = self.comp()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return exp;
+        return Ok(exp);
     }
 
-    fn comp(&mut self) -> Expression {
-        let mut exp: Expression = self.term();
+    fn comp(&mut self) -> Result<Expression, Errors> {
+        let mut exp: Expression = self.term()?;
 
         while let Some(token) = self.tokens.next_if(|token| {
             [
@@ -120,72 +117,71 @@ impl Parser {
             ]
             .contains(&token.token_type)
         }) {
-            let expr_right = self.term();
+            let expr_right = self.term()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return exp;
+        return Ok(exp);
     }
 
-    fn term(&mut self) -> Expression {
-        let mut exp: Expression = self.factor();
+    fn term(&mut self) -> Result<Expression, Errors> {
+        let mut exp: Expression = self.factor()?;
 
         while let Some(token) = self
             .tokens
             .next_if(|token| [TokenType::MINUS, TokenType::PLUS].contains(&token.token_type))
         {
-            let expr_right = self.factor();
+            let expr_right = self.factor()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return exp;
+        return Ok(exp);
     }
 
-    fn factor(&mut self) -> Expression {
-        let mut exp: Expression = self.unary();
+    fn factor(&mut self) -> Result<Expression, Errors> {
+        let mut exp: Expression = self.unary()?;
 
         while let Some(token) = self
             .tokens
             .next_if(|token| [TokenType::SLASH, TokenType::STAR].contains(&token.token_type))
         {
-            let expr_right = self.unary();
+            let expr_right = self.unary()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return exp;
+        return Ok(exp);
     }
 
-    fn unary(&mut self) -> Expression {
+    fn unary(&mut self) -> Result<Expression, Errors> {
         if let Some(operator) = self
             .tokens
             .next_if(|token| [TokenType::BANG, TokenType::MINUS].contains(&token.token_type))
         {
-            let exp_right = self.unary();
-            return Expression::Unary(operator, Box::new(exp_right));
+            let exp_right = self.unary()?;
+            return Ok(Expression::Unary(operator, Box::new(exp_right)));
         }
 
-        if let Some(primary_expr) = self.primary() {
-            return primary_expr;
-        }
+        return Ok(self.primary()?);
     }
 
-    fn primary(&mut self) -> Result<Expression, ErrorSet> {
+    fn primary(&mut self) -> Result<Expression, Errors> {
         if let Some(token) = self.tokens.next() {
             match token.token_type {
                 TokenType::TRUE | TokenType::FALSE | TokenType::NIL => {
-                    Ok(Expression::Literal(token))
+                    return Ok(Expression::Literal(token));
                 }
 
-                TokenType::NUMBER | TokenType::STRING => Ok(Expression::Literal(token)),
+                TokenType::NUMBER | TokenType::STRING => return Ok(Expression::Literal(token)),
 
                 TokenType::LeftPara => {
-                    let exp = self.expression();
+                    let exp = self.expression()?;
                     if let Some(token) = self.tokens.next() {
-                        Ok(Expression::Grouping(Box::new(exp)))
+                        return Ok(Expression::Grouping(Box::new(exp)));
                     } else {
-                        Err(ErrorSet.error(token.line, String::from("Exptected to Closed para: )")))
+                        return Err(Errors::UntermitedGroup);
                     }
                 }
-                _ => None,
+                _ => return Err(Errors::NonPrimaryToken),
             }
         }
+        return Err(Errors::NonPrimaryToken);
     }
 
     // fn check(&self, token_type: TokenType) -> bool {

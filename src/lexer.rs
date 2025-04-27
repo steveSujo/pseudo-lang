@@ -1,8 +1,7 @@
-
-use std::ops::Range;
+use std::{collections::TryReserveError, ops::Range};
 
 use crate::{
-    error_handler::ErrorSet,
+    error_handler::Errors,
     tokens::{LiteralType, Token, TokenType},
 };
 
@@ -12,7 +11,6 @@ pub struct Lexer {
     pub token_list: Vec<Token>,
     start: usize,
     current: usize,
-    pub error_set: ErrorSet,
     line: usize,
 }
 
@@ -24,13 +22,12 @@ impl Lexer {
             start: 0,
             current: 0,
             line: 1,
-            error_set: ErrorSet::default(),
         }
     }
-    pub fn scan_tokens(&mut self) -> &Vec<Token> {
+    pub fn scan_tokens(&mut self) -> Result<Vec<Token>, Errors> {
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token();
+            self.scan_token()?;
         }
 
         self.token_list.push(Token::new(
@@ -40,11 +37,11 @@ impl Lexer {
             self.line,
         ));
 
-        return &self.token_list;
+        return Ok(self.token_list.clone());
     }
 
-    fn scan_token(&mut self) {
-        let character = self.advance().expect("advace to next char return none");
+    fn scan_token(&mut self) -> Result<(), Errors> {
+        let character = self.advance();
         match character {
             '(' => self.add_token(TokenType::LeftPara),
             ')' => self.add_token(TokenType::RightPara),
@@ -101,23 +98,25 @@ impl Lexer {
             ' ' => {}
             '\r' => {}
             '\t' => {}
-            '"' => self.string(),
-            char if char.is_digit(10) => self.number(),
+            '"' => self.string()?,
+            char if char.is_digit(10) => self.number()?,
             char if char.is_alphabetic() || char == '_' => self.identifier(),
             char => {
                 //error unexpeted char
-                self.error_set
-                    .error_where(self.line, char.to_string(), "Unexpeted char".to_owned())
+                // self.error_set
+                //     .error_where(self.line, char.to_string(), "Unexpeted char".to_owned())
+                return Err(Errors::UnexpectedChar);
             }
         }
+        Ok(())
     }
 
     fn is_at_end(&self) -> bool {
         self.current >= self.source.len()
     }
 
-    fn advance(&mut self) -> Option<char> {
-        let character = self.source.chars().nth(self.current);
+    fn advance(&mut self) -> char {
+        let character = self.source.chars().nth(self.current).unwrap();
 
         self.current += 1;
 
@@ -165,7 +164,7 @@ impl Lexer {
         self.source.chars().nth(self.current)
     }
 
-    fn string(&mut self) {
+    fn string(&mut self) -> Result<(), Errors> {
         while self.peek() != Some('"') && !self.is_at_end() {
             if self.peek() == Some('\n') {
                 self.line += 1;
@@ -173,8 +172,7 @@ impl Lexer {
             self.advance();
         }
         if self.is_at_end() {
-            self.error_set
-                .error(self.line, String::from("Untermited String"));
+            return Err(Errors::UntermitedString);
         }
         self.advance();
         let string_value = &self.source[self.start + 1..self.current - 1];
@@ -182,9 +180,10 @@ impl Lexer {
             TokenType::STRING,
             Some(LiteralType::String(string_value.to_string())),
         );
+        Ok(())
     }
 
-    fn number(&mut self) {
+    fn number(&mut self) -> Result<(), Errors> {
         let digits: Range<Option<char>> = Some('0')..Some('9');
 
         while digits.contains(&self.peek()) {
@@ -199,11 +198,10 @@ impl Lexer {
         self.add_token_with_literal(
             TokenType::NUMBER,
             Some(LiteralType::Number(
-                self.source[self.start..self.current]
-                    .parse::<f32>()
-                    .expect("INTERNAl: Number parse error"),
+                self.source[self.start..self.current].parse::<f32>()?,
             )),
-        )
+        );
+        Ok(())
     }
 
     fn peek_next(&self) -> Option<char> {
