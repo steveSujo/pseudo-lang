@@ -77,19 +77,24 @@ pub mod tokens {
         pub text: String,
         pub literal: Option<LiteralType>,
         pub line: usize,
+        end: usize,
+        start: usize,
     }
 
     impl Token {
         pub fn new(
             token_type: TokenType,
-            text: String,
             literal: Option<LiteralType>,
+            start: usize,
+            end: usize,
             line: usize,
         ) -> Self {
             Token {
                 token_type,
-                text,
+                start,
+                end,
                 literal,
+                text: String::new(),
                 line,
             }
         }
