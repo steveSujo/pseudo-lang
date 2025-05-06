@@ -7,7 +7,7 @@ use std::{
 
 use psudo::{
     lexer::Lexer,
-    parser::{Expression, ExpressionVistor, Parser, PrettyPrint},
+    parser::{Expression, ExpressionVistor, Interpret, Parser, PrettyPrint},
     tokens::{LiteralType, Token, TokenType},
 };
 
@@ -25,6 +25,7 @@ struct Config {
 //         }
 //     }
 // }
+
 fn main() {
     let mut program_conf: Config = Config::default();
 
@@ -105,39 +106,43 @@ fn run(source: String) {
     let token_list_result = lexer.scan_tokens();
     match token_list_result {
         Ok(token_list) => {
+            // println!("\nTokens :\n***");
             // for token in token_list {
             //     println!("{}", token);
             // }
             let _ = Parser::new(token_list)
                 .expression()
-                .map(|exp| println!("{}", PrettyPrint.vist_expr(exp)))
-                .map_err(|er| println!("{}", er));
+                .map(|exp| {
+                    // println!("Expr: {}", PrettyPrint.vist_expr(exp));
+                    println!("eval: {}", Interpret.vist_expr(exp))
+                })
+                .map_err(|err| println!("{}", err));
         }
         Err(_) => todo!(),
     }
 }
 
-fn debug_exp_print() {
-    let op_plus = Token::new(TokenType::PLUS, "+".to_string(), None, 0);
-    let op_minus = Token::new(TokenType::MINUS, "-".to_string(), None, 0);
-    let a_token = Token::new(
-        TokenType::NUMBER,
-        "1".to_string(),
-        Some(LiteralType::Number(1.0)),
-        0,
-    );
-    let b_token = Token::new(
-        TokenType::NUMBER,
-        "1".to_string(),
-        Some(LiteralType::Number(1.0)),
-        0,
-    );
+// fn debug_exp_print() {
+//     let op_plus = Token::new(TokenType::PLUS, "+".to_string(), None, 0);
+//     let op_minus = Token::new(TokenType::MINUS, "-".to_string(), None, 0);
+//     let a_token = Token::new(
+//         TokenType::NUMBER,
+//         "1".to_string(),
+//         Some(LiteralType::Number(1.0)),
+//         0,
+//     );
+//     let b_token = Token::new(
+//         TokenType::NUMBER,
+//         "1".to_string(),
+//         Some(LiteralType::Number(1.0)),
+//         0,
+//     );
 
-    let b_exp = Box::new(Expression::Grouping(Box::new(Expression::Unary(
-        op_minus,
-        Box::new(Expression::Literal(b_token)),
-    ))));
-    let exp = Expression::Binary(Box::new(Expression::Literal(a_token)), op_plus, b_exp);
+//     let b_exp = Box::new(Expression::Grouping(Box::new(Expression::Unary(
+//         op_minus,
+//         Box::new(Expression::Literal(b_token)),
+//     ))));
+//     let exp = Expression::Binary(Box::new(Expression::Literal(a_token)), op_plus, b_exp);
 
-    println!("{}", PrettyPrint.vist_expr(exp));
-}
+//     println!("{}", PrettyPrint.vist_expr(exp));
+// }
