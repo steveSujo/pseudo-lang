@@ -7,8 +7,7 @@ use std::{
 
 use psudo::{
     lexer::Lexer,
-    parser::{Expression, ExpressionVistor, Interpret, Parser, PrettyPrint},
-    tokens::{LiteralType, Token, TokenType},
+    parser::{Interpret, Parser},
 };
 
 #[derive(Default)]
@@ -104,45 +103,22 @@ fn run_prompt() {
 fn run(source: String) {
     let mut lexer = Lexer::new(source.trim().to_owned());
     let token_list_result = lexer.scan_tokens();
-    match token_list_result {
-        Ok(token_list) => {
-            // println!("\nTokens :\n***");
-            // for token in token_list {
-            //     println!("{}", token);
-            // }
-            let _ = Parser::new(token_list)
-                .expression()
-                .map(|exp| {
-                    // println!("Expr: {}", PrettyPrint.vist_expr(exp));
-                    println!("eval: {}", Interpret.vist_expr(exp))
-                })
-                .map_err(|err| println!("{}", err));
+    let token_list = match token_list_result {
+        Ok(tokens) => tokens,
+        Err(_) => {
+            println!("Lexer had errors, attempting to parse anyway...");
+            lexer.get_tokens()
         }
-        Err(_) => todo!(),
+    };
+    println!("Tokens: {:?}", token_list);
+    let mut parser = Parser::new(token_list);
+    let mut interpreter = Interpret::default();
+    match parser.parse() {
+        Ok(statements) => {
+            for stmt in statements {
+                interpreter.execute(&stmt);
+            }
+        }
+        Err(err) => println!("Parser error: {}", err),
     }
 }
-
-// fn debug_exp_print() {
-//     let op_plus = Token::new(TokenType::PLUS, "+".to_string(), None, 0);
-//     let op_minus = Token::new(TokenType::MINUS, "-".to_string(), None, 0);
-//     let a_token = Token::new(
-//         TokenType::NUMBER,
-//         "1".to_string(),
-//         Some(LiteralType::Number(1.0)),
-//         0,
-//     );
-//     let b_token = Token::new(
-//         TokenType::NUMBER,
-//         "1".to_string(),
-//         Some(LiteralType::Number(1.0)),
-//         0,
-//     );
-
-//     let b_exp = Box::new(Expression::Grouping(Box::new(Expression::Unary(
-//         op_minus,
-//         Box::new(Expression::Literal(b_token)),
-//     ))));
-//     let exp = Expression::Binary(Box::new(Expression::Literal(a_token)), op_plus, b_exp);
-
-//     println!("{}", PrettyPrint.vist_expr(exp));
-// }

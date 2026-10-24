@@ -1,4 +1,4 @@
-use std::{collections::TryReserveError, ops::Range};
+use std::ops::Range;
 
 use crate::{
     error_handler::Errors,
@@ -25,9 +25,13 @@ impl Lexer {
         }
     }
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>, Errors> {
+        let mut had_error = false;
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token()?;
+            if let Err(e) = self.scan_token() {
+                println!("{}", e);
+                had_error = true;
+            }
         }
 
         self.token_list.push(Token::new(
@@ -37,7 +41,15 @@ impl Lexer {
             self.line,
         ));
 
-        return Ok(self.token_list.clone());
+        if had_error {
+            Err(Errors::UnexpectedChar)
+        } else {
+            Ok(self.token_list.clone())
+        }
+    }
+
+    pub fn get_tokens(&self) -> Vec<Token> {
+        self.token_list.clone()
     }
 
     fn scan_token(&mut self) -> Result<(), Errors> {
@@ -101,7 +113,7 @@ impl Lexer {
             '"' => self.string()?,
             char if char.is_digit(10) => self.number()?,
             char if char.is_alphabetic() || char == '_' => self.identifier(),
-            char => {
+            _char => {
                 //error unexpeted char
                 // self.error_set
                 //     .error_where(self.line, char.to_string(), "Unexpeted char".to_owned())
@@ -172,7 +184,7 @@ impl Lexer {
             self.advance();
         }
         if self.is_at_end() {
-            return Err(Errors::UntermitedString);
+            return Err(Errors::UnterminatedString);
         }
         self.advance();
         let string_value = &self.source[self.start + 1..self.current - 1];

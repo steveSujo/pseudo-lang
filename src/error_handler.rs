@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, fs::write, num::ParseFloatError};
+use std::{error::Error, fmt::Display, num::ParseFloatError};
 
 //TODO: add more types
 // enum ErrorType {
@@ -52,8 +52,8 @@ use std::{error::Error, fmt::Display, fs::write, num::ParseFloatError};
 #[derive(Debug)]
 pub enum Errors {
     //add line data
-    UntermitedGroup,
-    UntermitedString,
+    UnterminatedGroup,
+    UnterminatedString,
     UnexpectedChar,
     NonPrimaryToken,
     ParseFloatError(ParseFloatError),
@@ -62,11 +62,11 @@ pub enum Errors {
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Errors::UntermitedGroup => write!(f, "A Group Expression should close with (\")\")"),
-            Errors::UntermitedString => write!(f, "A String should close with (\") "),
+            Errors::UnterminatedGroup => write!(f, "A Group Expression should close with (\")\")"),
+            Errors::UnterminatedString => write!(f, "A String should close with (\") "),
             Errors::UnexpectedChar => write!(f, "Unknown Character by the Lexer for found"),
-            Errors::NonPrimaryToken => write!(f, "Unknown Token for Primary Exprission"),
-            Errors::ParseFloatError(..) => write!(f, "NUMER Token Parse Error"),
+            Errors::NonPrimaryToken => write!(f, "Unknown Token for Primary Expression"),
+            Errors::ParseFloatError(..) => write!(f, "NUMBER Token Parse Error"),
         }
     }
 }
