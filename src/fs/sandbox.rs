@@ -232,6 +232,9 @@ pub fn mkdir(path: &str) -> Result<(), FSError> {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
 
     fn setup_test_sandbox() -> PathBuf {
         let temp = std::env::temp_dir().join(format!("psudo_test_{}", std::process::id()));
@@ -239,17 +242,23 @@ mod tests {
         temp
     }
 
+    fn init_test_sandbox() -> PathBuf {
+        let sandbox = setup_test_sandbox();
+        INIT.call_once(|| {
+            init_sandbox(Some(sandbox.clone())).unwrap();
+        });
+        sandbox
+    }
+
     #[test]
     fn test_sandbox_init() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
-        assert_eq!(sandbox_root().unwrap().as_path(), sandbox.canonicalize().unwrap());
+        let sandbox = init_test_sandbox();
+        assert_eq!(sandbox_root().unwrap(), sandbox.canonicalize().unwrap());
     }
 
     #[test]
     fn test_resolve_path() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
+        let _sandbox = init_test_sandbox();
 
         // Valid path
         let resolved = resolve_path("test.txt").unwrap();
@@ -264,8 +273,7 @@ mod tests {
 
     #[test]
     fn test_read_write() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
+        let _sandbox = init_test_sandbox();
 
         write_file("test.txt", "hello world").unwrap();
         let content = read_file("test.txt").unwrap();
@@ -274,10 +282,9 @@ mod tests {
 
     #[test]
     fn test_list_dir() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
+        let _sandbox = init_test_sandbox();
 
-        fs::create_dir_all(sandbox.join("subdir")).unwrap();
+        fs::create_dir_all(sandbox_root().unwrap().join("subdir")).unwrap();
         write_file("a.txt", "1").unwrap();
         write_file("b.txt", "2").unwrap();
 
@@ -289,8 +296,7 @@ mod tests {
 
     #[test]
     fn test_mkdir() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
+        let _sandbox = init_test_sandbox();
 
         mkdir("newdir").unwrap();
         assert!(is_dir("newdir"));
@@ -298,8 +304,7 @@ mod tests {
 
     #[test]
     fn test_file_size_limit() {
-        let sandbox = setup_test_sandbox();
-        init_sandbox(Some(sandbox.clone())).unwrap();
+        let _sandbox = init_test_sandbox();
 
         let large = "x".repeat(MAX_FILE_SIZE as usize + 1);
         assert!(write_file("large.txt", &large).is_err());
