@@ -1,45 +1,160 @@
+# pseudo-lang (psudo)
 
-# Pseudo lang
+A Rust implementation of the Lox language from "Crafting Interpreters" with a Lean 4 formal verification companion.
 
-I've been tinkering with the idea of creating a programming language for a while now, and Pseudo is the result of that exploration. It's not a finished product, and it's not intended to be a production-ready language. It's simply a collection of code that represents my attempt to understand the inner workings of programming languages.
+## Features
 
-# What is Pseudo?
+- **Variables**: `let x = 10;`, `x = x + 1;`
+- **Control flow**: `if/else`, `while`, `for` loops with blocks `{ ... }`
+- **Data types**: Numbers (f32), Booleans, Strings, Nil
+- **Operators**: Arithmetic (+, -, *, /), Comparison (==, !=, <, >, <=, >=), Logical (!)
+- **String concatenation**: `"a" + "b"` → `"ab"`
+- **Print statements**: `print expression;`
+- **REPL**: Interactive mode with `cargo run -- -i`
 
-Pseudo is an experimental programming language that I've been working on in my spare time. It's a way for me to learn about the concepts and techniques that underlie the design and implementation of programming languages. I'm not trying to create something that will change the world; I'm just trying to learn.
+## Quick Start
 
-# Getting Started 
+```bash
+# Build
+cargo build
 
-## Build from source 
+# Run file
+cargo run -- -f scripts/hello.psudo
 
-### Requirements
+# REPL
+cargo run -- -i
 
-  * `rust`/`cargo` version 1.82.0
-  
-clone this repo and cd into it then
+# Run all test scripts (Windows)
+scripts/run_all.bat
 
-```shell
-# run with cargo
-cargo run 
+# Run all test scripts (Unix)
+./scripts/run_all.sh
 ```
 
-# Current State
+## Example
 
-The project is still in its early stages, and there's a lot of work to be done. The current roadmap includes:
+```lox
+let x = 10;
+let y = 5;
+print x + y;        // 15
+print x * y;        // 50
 
-- [x] Lexical analysis
-- [ ] Parsing the Tokens
-- [ ] Static analysis
-- [ ] Read Evaluate Print Loop (REPL)
+if (x > y) {
+    print "x is greater";
+} else {
+    print "y is greater";
+}
 
-I'll get to these eventually, but no promises on when.
+for (let i = 0; i < 3; i = i + 1) {
+    print i;
+}
+```
 
-<!-- # Documentation -->
+## Project Structure
 
-<!-- There's some documentation in the Docs directory, but it's not comprehensive. I'll try to keep it up-to-date as the project evolves. -->
-<!-- Why Bother? -->
+```
+pseudo-lang/
+├── src/                    # Rust interpreter
+│   ├── main.rs            # CLI entry point
+│   ├── lib.rs             # Public API, tokens
+│   ├── lexer.rs           # Lexical analysis
+│   ├── parser.rs          # Parsing + interpretation
+│   └── error_handler.rs   # Error types
+├── scripts/               # Test scripts
+│   ├── hello.psudo
+│   ├── arithmetic.psudo
+│   ├── control_flow.psudo
+│   ├── strings.psudo
+│   ├── booleans.psudo
+│   ├── variables.psudo
+│   ├── blocks.psudo
+│   ├── complex.psudo
+│   ├── run_all.bat
+│   └── run_all.sh
+├── tests/                 # Integration tests
+├── lean/                  # Lean 4 formal verification
+│   ├── Spec.lean          # Formal specification
+│   ├── Verification.lean  # Verification theorems
+│   ├── PsudoVerification.lean
+│   ├── lakefile.toml
+│   └── lean-toolchain
+├── Cargo.toml
+└── LICENSE.md
+```
 
-<!-- I'm not really sure. I just find this stuff interesting, and I wanted to see if I could do it. If you're interested in looking at the code, be my guest. Just don't expect it to be perfect; it's a work in progress. -->
+## Formal Verification (Lean 4)
 
-# License
+The `lean/` directory contains a formal specification and verification of the interpreter:
 
-Pseudo is licensed under the MIT License. Do what you want with it.
+```bash
+cd lean
+lake build
+```
+
+**Proven theorems (24):**
+- Literal value preservation
+- Binary/unary operations correctness
+- Comparison operations
+- Truthiness semantics
+- Error handling (division by zero, type errors)
+
+**Pending (6, marked `sorry`):** Full evaluation proofs for expressions, statements, and control flow (require Mathlib tactics).
+
+## Development
+
+```bash
+# Format
+cargo fmt
+
+# Lint
+cargo clippy
+
+# Test
+cargo test
+
+# Lean verification
+cd lean && lake build
+```
+
+## Language Reference
+
+### Literals
+- Numbers: `1`, `3.14`, `-5`
+- Strings: `"hello"`, `"world"`
+- Booleans: `true`, `false`
+- Nil: `nil`
+
+### Operators
+| Precedence | Operators | Associativity |
+|------------|-----------|---------------|
+| Highest    | `-` (unary), `!` | Right |
+|            | `*`, `/` | Left |
+|            | `+`, `-` | Left |
+|            | `<`, `>`, `<=`, `>=` | Left |
+|            | `==`, `!=` | Left |
+| Lowest     | `=` (assignment) | Right |
+
+### Statements
+- `print expr;`
+- `let name = expr;`
+- `name = expr;`
+- `if (cond) { ... } else { ... }`
+- `while (cond) { ... }`
+- `for (init; cond; inc) { ... }`
+- `{ stmt; stmt; }` (block)
+
+## Status
+
+| Component | Status |
+|-----------|--------|
+| Lexer | ✅ Complete |
+| Parser | ✅ Complete |
+| Interpreter | ✅ Complete |
+| REPL | ✅ Complete |
+| Error handling | ✅ Complete |
+| Lean spec | ✅ Complete |
+| Lean proofs | ⚠️ Partial (24/30) |
+
+## License
+
+MIT License - see [LICENSE.md](LICENSE.md)
