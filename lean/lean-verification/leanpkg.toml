@@ -1,7 +1,0 @@
-name: psudo-lean-verification
-version: 0.1.0
-description: Formal verification of pseudo-lang interpreter
-leanVersion: "4.10.0"
-dependencies:
-  - lean4
-  - std

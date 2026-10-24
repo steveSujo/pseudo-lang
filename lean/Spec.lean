@@ -1,8 +1,6 @@
-/-- Formal specification of the pseudo-lang (psudo) interpreter in Lean 4 -/
+/- Formal specification of the pseudo-lang (psudo) interpreter in Lean 4 -/
 
-namespace Psudo
-
-/-- Token types matching the Rust implementation -/
+/- Token types matching the Rust implementation -/
 inductive TokenType
   | LeftParen | RightParen | LeftBrace | RightBrace | Comma | Dot | Minus | Plus | Semicolon | Slash | Star
   | Bang | BangEqual | Equal | EqualEqual | Greater | GreaterEqual | Less | LessEqual
@@ -57,11 +55,22 @@ inductive EvalResult where
   | Ok : Value → EvalResult
   | Error : String → EvalResult
 
+instance : Nonempty EvalResult := ⟨EvalResult.Ok Value.Nil⟩
+
+/-- Bind operation for EvalResult -/
+def bind (r : EvalResult) (f : Value → EvalResult) : EvalResult :=
+  match r with
+  | EvalResult.Ok v => f v
+  | EvalResult.Error e => EvalResult.Error e
+
 /-- Interpreter state -/
 structure InterpreterState where
   env : Environment
 
 def emptyState : InterpreterState := ⟨fun _ => none⟩
+
+instance : Nonempty InterpreterState := ⟨emptyState⟩
+instance : Nonempty (EvalResult × InterpreterState) := ⟨(EvalResult.Ok Value.Nil, emptyState)⟩
 
 /-- Lookup variable in environment -/
 def lookupVar (env : Environment) (name : String) : EvalResult :=
@@ -86,7 +95,7 @@ def tokenToValue (tok : Token) : EvalResult :=
     | TokenType.True => EvalResult.Ok (Value.Bool true)
     | TokenType.False => EvalResult.Ok (Value.Bool false)
     | TokenType.Nil => EvalResult.Ok Value.Nil
-    | TokenType.Identifier => lookupVar emptyState tok.text
+    | TokenType.Identifier => lookupVar emptyState.env tok.text
     | _ => EvalResult.Error "Expected literal token"
 
 /-- Binary operations on Values -/
@@ -108,14 +117,14 @@ def applyBinaryOp (op : TokenType) (a b : Value) : EvalResult :=
   | TokenType.LessEqual, Value.Num x, Value.Num y => EvalResult.Ok (Value.Bool (x ≤ y))
   | TokenType.Greater, Value.Num x, Value.Num y => EvalResult.Ok (Value.Bool (x > y))
   | TokenType.GreaterEqual, Value.Num x, Value.Num y => EvalResult.Ok (Value.Bool (x ≥ y))
-  | _, _, _ => EvalResult.Error ("Unsupported operation: " ++ op.toString)
+  | _, _, _ => EvalResult.Error "Unsupported operation"
 
 /-- Unary operations on Values -/
 def applyUnaryOp (op : TokenType) (v : Value) : EvalResult :=
   match op, v with
   | TokenType.Minus, Value.Num x => EvalResult.Ok (Value.Num (-x))
   | TokenType.Bang, Value.Bool x => EvalResult.Ok (Value.Bool (!x))
-  | _, _ => EvalResult.Error ("Unsupported unary operation: " ++ op.toString)
+  | _, _ => EvalResult.Error "Unsupported unary operation"
 
 /-- Truthiness of a Value (Lox semantics) -/
 def isTruthy (v : Value) : Bool :=
@@ -130,14 +139,14 @@ partial def evalExpr (state : InterpreterState) (e : Expr) : EvalResult :=
   | Expr.Literal tok => tokenToValue tok
   | Expr.Grouping e => evalExpr state e
   | Expr.Unary opTok right =>
-    evalExpr state right |>.bind (applyUnaryOp opTok.tokenType)
+    bind (evalExpr state right) (applyUnaryOp opTok.tokenType)
   | Expr.Binary left opTok right =>
-    evalExpr state left |>.bind (fun a =>
-    evalExpr state right |>.bind (fun b =>
+    bind (evalExpr state left) (fun a =>
+    bind (evalExpr state right) (fun b =>
     applyBinaryOp opTok.tokenType a b))
   | Expr.Assign name value =>
-    evalExpr state value |>.bind (fun v =>
-      EvalResult.Ok v) -- Note: state update handled at statement level
+    bind (evalExpr state value) (fun v =>
+      EvalResult.Ok v)
 
 /-- Execute a statement -/
 partial def execStmt (state : InterpreterState) (s : Stmt) : EvalResult × InterpreterState :=
@@ -171,6 +180,7 @@ partial def execStmt (state : InterpreterState) (s : Stmt) : EvalResult × Inter
           match execStmt s body with
           | (EvalResult.Error e, s') => (EvalResult.Error e, s')
           | (_, s') => whileLoop s'
+        else (EvalResult.Ok Value.Nil, s)
       | EvalResult.Error e => (EvalResult.Error e, s)
     whileLoop state
   | Stmt.ForStmt init cond increment body =>
@@ -190,7 +200,7 @@ partial def execStmt (state : InterpreterState) (s : Stmt) : EvalResult × Inter
                   | EvalResult.Ok _ => forLoop s' true
                   | EvalResult.Error e => (EvalResult.Error e, s')
                 | none => forLoop s' true
-            else (EvalResult.Ok Value.Nil, s')
+            else (EvalResult.Ok Value.Nil, s)
           | EvalResult.Error e => (EvalResult.Error e, s)
         | none =>
           match execStmt s body with
@@ -230,5 +240,3 @@ def runProgram (stmts : List Stmt) : EvalResult :=
       | (EvalResult.Error e, _) => EvalResult.Error e
       | (_, newState) => run newState rest
   run emptyState stmts
-
-end Psudo
