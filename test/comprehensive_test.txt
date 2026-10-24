@@ -1,0 +1,38 @@
+print 1 + 2;
+print 3 * 4;
+print "hello world";
+print true == false;
+print 10 > 5;
+print 3 < 4;
+print "test" + "ing";
+print 1 + 2 * 3;
+print (1 + 2) * 3;
+
+let x = 10;
+let y = 5;
+print x + y;
+print x - y;
+print x * y;
+print x / y;
+
+let i = 0;
+while (i < 5) {
+    print i;
+    i = i + 1;
+}
+
+for (let j = 0; j < 3; j = j + 1) {
+    print j;
+}
+
+if (true) {
+    print "if true";
+} else {
+    print "if false";
+}
+
+if (false) {
+    print "if true";
+} else {
+    print "if false";
+}
