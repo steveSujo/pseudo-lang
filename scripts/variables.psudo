@@ -1,0 +1,22 @@
+print "=== Variable Tests ===";
+
+let x = 10;
+print x;
+
+x = 20;
+print x;
+
+let y = "hello";
+print y;
+
+y = "world";
+print y;
+
+let a = 1;
+let b = 2;
+let c = 3;
+print a + b + c;
+
+let name = "test";
+let value = 42;
+print name + " = " + value;

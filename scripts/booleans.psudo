@@ -1,0 +1,31 @@
+print "=== Boolean Tests ===";
+
+print true;
+print false;
+
+print true == true;
+print true == false;
+print false == false;
+
+print 10 > 5;
+print 5 > 10;
+print 5 == 5;
+print 5 != 5;
+print 3 < 4;
+print 4 <= 4;
+print 5 >= 5;
+
+print !true;
+print !false;
+
+let a = true;
+let b = false;
+print a == b;
+print !a;
+
+print "truthy tests:";
+if (1) { print "1 is truthy"; }
+if (0) { print "0 is truthy"; } else { print "0 is falsy"; }
+if ("hello") { print "string is truthy"; }
+if ("") { print "empty string is truthy"; } else { print "empty string is falsy"; }
+if (nil) { print "nil is truthy"; } else { print "nil is falsy"; }

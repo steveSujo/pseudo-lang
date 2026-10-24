@@ -1,0 +1,28 @@
+print "=== Block Scope Tests ===";
+
+{
+    let x = 1;
+    print "inner x: " + x;
+}
+print "outer x: ";
+print x;
+
+print "=== Nested Blocks ===";
+let a = 10;
+{
+    let b = 20;
+    {
+        let c = 30;
+        print a + b + c;
+    }
+    print a + b;
+}
+print a;
+
+print "=== Function-like (blocks as statements) ===";
+let result = 0;
+{
+    let temp = 5;
+    result = temp * 2;
+}
+print result;

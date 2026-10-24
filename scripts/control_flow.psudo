@@ -1,0 +1,40 @@
+print "=== Control Flow Tests ===";
+
+print "--- if/else ---";
+if (true) {
+    print "true branch";
+} else {
+    print "false branch";
+}
+
+if (false) {
+    print "true branch";
+} else {
+    print "false branch";
+}
+
+let x = 10;
+if (x > 5) {
+    print "x > 5";
+} else {
+    print "x <= 5";
+}
+
+print "--- while loop ---";
+let i = 0;
+while (i < 5) {
+    print i;
+    i = i + 1;
+}
+
+print "--- for loop ---";
+for (let j = 0; j < 3; j = j + 1) {
+    print j;
+}
+
+print "--- nested loops ---";
+for (let a = 0; a < 2; a = a + 1) {
+    for (let b = 0; b < 2; b = b + 1) {
+        print a + b;
+    }
+}
