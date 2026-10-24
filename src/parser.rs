@@ -70,7 +70,8 @@ pub enum Expression {
     Unary(Token, Box<Expression>),
     Literal(Token),
     Grouping(Box<Expression>),
-    Assign(String, Box<Expression>), // name, value
+    Assign(String, Box<Expression>),
+    Call(String, Vec<Expression>), // function name, arguments
 }
 
 // let var:Option
@@ -82,6 +83,7 @@ pub trait ExpressionVisitor<T> {
     fn visit_literal(&mut self, token: &Token) -> T;
     fn visit_grouping(&mut self, expression: &Expression) -> T;
     fn visit_assign(&mut self, name: &str, value: &Expression) -> T;
+    fn visit_call(&mut self, name: &str, args: &[Expression]) -> T;
 }
 //operations as classes
 use std::collections::HashMap;
@@ -192,6 +194,107 @@ impl ExpressionVisitor<DataTypes> for Interpret {
         self.environment.insert(name.to_string(), val.clone());
         val
     }
+
+    fn visit_call(&mut self, name: &str, args: &[Expression]) -> DataTypes {
+        // Evaluate all arguments first
+        let arg_vals: Vec<DataTypes> = args.iter().map(|a| self.visit_expr(a)).collect();
+
+        // Built-in functions
+        match name {
+            "readFile" => {
+                if arg_vals.len() != 1 {
+                    return DataTypes::Str("readFile expects 1 argument".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("readFile expects string argument".to_string()),
+                };
+                match crate::fs::read_file(&path) {
+                    Ok(content) => DataTypes::Str(content),
+                    Err(e) => DataTypes::Str(format!("Error: {}", e)),
+                }
+            }
+            "writeFile" => {
+                if arg_vals.len() != 2 {
+                    return DataTypes::Str("writeFile expects 2 arguments".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("writeFile expects string path".to_string()),
+                };
+                let content = match &arg_vals[1] {
+                    DataTypes::Str(s) => s.clone(),
+                    DataTypes::Number(n) => n.to_string(),
+                    DataTypes::Bool(b) => b.to_string(),
+                };
+                match crate::fs::write_file(&path, &content) {
+                    Ok(_) => DataTypes::Number(0.0), // nil equivalent
+                    Err(e) => DataTypes::Str(format!("Error: {}", e)),
+                }
+            }
+            "listDir" => {
+                let path = if arg_vals.is_empty() {
+                    ".".to_string()
+                } else {
+                    match &arg_vals[0] {
+                        DataTypes::Str(s) => s.clone(),
+                        _ => return DataTypes::Str("listDir expects string argument".to_string()),
+                    }
+                };
+                match crate::fs::list_dir(&path) {
+                    Ok(entries) => {
+                        let joined = entries.join("\n");
+                        DataTypes::Str(joined)
+                    }
+                    Err(e) => DataTypes::Str(format!("Error: {}", e)),
+                }
+            }
+            "exists" => {
+                if arg_vals.len() != 1 {
+                    return DataTypes::Str("exists expects 1 argument".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("exists expects string argument".to_string()),
+                };
+                DataTypes::Bool(crate::fs::exists(&path))
+            }
+            "isFile" => {
+                if arg_vals.len() != 1 {
+                    return DataTypes::Str("isFile expects 1 argument".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("isFile expects string argument".to_string()),
+                };
+                DataTypes::Bool(crate::fs::is_file(&path))
+            }
+            "isDir" => {
+                if arg_vals.len() != 1 {
+                    return DataTypes::Str("isDir expects 1 argument".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("isDir expects string argument".to_string()),
+                };
+                DataTypes::Bool(crate::fs::is_dir(&path))
+            }
+            "mkdir" => {
+                if arg_vals.len() != 1 {
+                    return DataTypes::Str("mkdir expects 1 argument".to_string());
+                }
+                let path = match &arg_vals[0] {
+                    DataTypes::Str(s) => s.clone(),
+                    _ => return DataTypes::Str("mkdir expects string argument".to_string()),
+                };
+                match crate::fs::mkdir(&path) {
+                    Ok(_) => DataTypes::Number(0.0),
+                    Err(e) => DataTypes::Str(format!("Error: {}", e)),
+                }
+            }
+            _ => DataTypes::Str(format!("Unknown function: {}", name)),
+        }
+    }
 }
 
 impl Interpret {
@@ -202,6 +305,7 @@ impl Interpret {
             Expression::Literal(token) => self.visit_literal(token),
             Expression::Grouping(exp) => self.visit_grouping(exp),
             Expression::Assign(name, value) => self.visit_assign(name, value),
+            Expression::Call(name, args) => self.visit_call(name, args),
         }
     }
 
@@ -305,6 +409,11 @@ impl ExpressionVisitor<String> for PrettyPrint {
     fn visit_assign(&mut self, name: &str, value: &Expression) -> String {
         format!("(assign {} {})", name, self.visit_expr(value.clone()))
     }
+
+    fn visit_call(&mut self, name: &str, args: &[Expression]) -> String {
+        let arg_strs: Vec<String> = args.iter().map(|a| self.visit_expr(a.clone())).collect();
+        format!("(call {} {})", name, arg_strs.join(" "))
+    }
 }
 
 impl PrettyPrint {
@@ -315,6 +424,7 @@ impl PrettyPrint {
             Expression::Literal(token) => self.visit_literal(&token),
             Expression::Grouping(exp) => self.visit_grouping(&exp),
             Expression::Assign(name, value) => self.visit_assign(&name, &value),
+            Expression::Call(name, args) => self.visit_call(&name, &args),
         }
     }
 }
@@ -536,7 +646,25 @@ impl Parser {
 
                 TokenType::NUMBER | TokenType::STRING => return Ok(Expression::Literal(token)),
 
-                TokenType::IDENTIFIER => return Ok(Expression::Literal(token)),
+                TokenType::IDENTIFIER => {
+                    // Check if this is a function call (identifier followed by '(')
+                    if self.check(TokenType::LeftPara) {
+                        self.consume(TokenType::LeftPara, "Expect '(' after function name")?;
+                        let mut args = Vec::new();
+                        if !self.check(TokenType::RightPara) {
+                            loop {
+                                args.push(self.expression()?);
+                                if !self.match_token(TokenType::COMMA) {
+                                    break;
+                                }
+                            }
+                        }
+                        self.consume(TokenType::RightPara, "Expect ')' after arguments")?;
+                        return Ok(Expression::Call(token.text.clone(), args));
+                    } else {
+                        return Ok(Expression::Literal(token));
+                    }
+                }
 
                 TokenType::LeftPara => {
                     let exp = self.expression()?;

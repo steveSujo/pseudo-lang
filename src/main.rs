@@ -6,6 +6,7 @@ use std::{
 };
 
 use psudo::{
+    fs::init_sandbox,
     lexer::Lexer,
     parser::{Interpret, Parser},
 };
@@ -101,6 +102,12 @@ fn run_prompt() {
 }
 
 fn run(source: String) {
+    // Initialize sandbox
+    if let Err(e) = init_sandbox(None) {
+        eprintln!("Failed to initialize sandbox: {}", e);
+        return;
+    }
+
     let mut lexer = Lexer::new(source.trim().to_owned());
     let token_list_result = lexer.scan_tokens();
     let token_list = match token_list_result {

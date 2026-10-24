@@ -224,7 +224,7 @@ impl Lexer {
     }
 
     fn identifier(&mut self) {
-        while self.peek().is_some_and(|char| char.is_alphanumeric()) {
+        while self.peek().is_some_and(|char| char.is_alphanumeric() || char == '_') {
             self.advance();
         }
         let text = &self.source[self.start..self.current];
