@@ -1,0 +1,17 @@
+// Arrays test
+let a = [1, 2, 3];
+print a[0];        // 1
+print len(a);      // 3
+print push(a, 4);  // [1, 2, 3, 4]
+print pop(a);      // [1, 2, 3]
+print slice(a, 1);     // [2, 3]
+print slice(a, 0, 2);  // [1, 2]
+print a;           // [1, 2, 3] (original unchanged)
+
+// String length
+let s = "hello";
+print len(s);      // 5
+
+// Object length
+let o = { a: 1, b: 2 };
+print len(o);      // 2

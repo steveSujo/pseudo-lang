@@ -27,7 +27,10 @@ pub mod tokens {
         RightPara,
         LeftBrace,
         RightBrace,
+        LeftBracket,
+        RightBracket,
         COMMA,
+        COLON,
         DOT,
         MINUS,
         PLUS,
@@ -52,7 +55,7 @@ pub mod tokens {
         CLASS,
         ELSE,
         FALSE,
-        FUN,
+        FN,
         FOR,
         IF,
         NIL,
@@ -64,6 +67,8 @@ pub mod tokens {
         LET,
         WHILE,
 
+        ARROW,
+
         EOF,
     }
     // impl Display for TokenType {
@@ -71,12 +76,36 @@ pub mod tokens {
     //         write!(f, "{}", self)
     //     }
     // }
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Span {
+        pub start_line: usize,
+        pub start_col: usize,
+        pub end_line: usize,
+        pub end_col: usize,
+    }
+
+    impl Span {
+        pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Self {
+            Span { start_line, start_col, end_line, end_col }
+        }
+        pub fn single(line: usize, col: usize) -> Self {
+            Span { start_line: line, start_col: col, end_line: line, end_col: col }
+        }
+    }
+
+    impl Default for Span {
+        fn default() -> Self {
+            Span { start_line: 1, start_col: 1, end_line: 1, end_col: 1 }
+        }
+    }
+
     #[derive(Debug, Clone)]
     pub struct Token {
         pub token_type: TokenType,
         pub text: String,
         pub literal: Option<LiteralType>,
         pub line: usize,
+        pub span: Span,
     }
 
     impl Token {
@@ -91,6 +120,22 @@ pub mod tokens {
                 text,
                 literal,
                 line,
+                span: Span::default(),
+            }
+        }
+
+        pub fn with_span(
+            token_type: TokenType,
+            text: String,
+            literal: Option<LiteralType>,
+            span: Span,
+        ) -> Self {
+            Token {
+                token_type,
+                text,
+                literal,
+                line: span.start_line,
+                span,
             }
         }
     }

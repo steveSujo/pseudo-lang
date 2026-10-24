@@ -17,13 +17,13 @@ pseudo-lang/
 │   └── comprehensive_test.txt
 ├── tests/                 # Integration tests
 │   └── integration_tests.rs
-├── lean/                  # Lean 4 formal verification
-│   └── lean-verification/
-│       ├── lean-toolchain
-│       ├── leanpkg.toml
-│       └── Psudo/
-│           ├── Spec.lean          # Formal specification
-│           └── Verification.lean  # Verification theorems
+├── lean/                  # Lean 4 formal verification (flat structure)
+│   ├── lean-toolchain
+│   ├── lakefile.toml
+│   ├── lake-manifest.json
+│   ├── Spec.lean          # Formal specification (module Spec)
+│   ├── Verification.lean  # Verification theorems (module Verification)
+│   └── Psudo.lean         # Main module importing Spec + Verification
 ├── Cargo.toml
 ├── Cargo.lock
 ├── README.md
@@ -60,7 +60,7 @@ cargo run -- -i                    # Interactive REPL
 cargo run -- -f test/file.txt      # Execute file
 
 # Lean verification (requires Lean 4)
-cd lean/lean-verification
+cd lean
 lake build
 ```
 
@@ -73,10 +73,12 @@ lake build
 - Public API in `lib.rs`, binary in `main.rs`
 
 ### Lean 4 Formal Verification
-- Specification in `Psudo/Spec.lean`
-- Theorems in `Psudo/Verification.lean`
+- Specification in `Spec.lean` (module `Spec`)
+- Theorems in `Verification.lean` (module `Verification`)
+- Main module in `Psudo.lean` imports both
 - Use `partial def` for potentially non-terminating functions
 - Prove safety properties (no division by zero, type preservation, etc.)
+- Keep Lean files flat in `lean/` directory (no nested `lean-verification/`)
 
 ### Testing
 - Integration tests in `tests/` (run with `cargo test`)
@@ -92,10 +94,10 @@ lake build
 4. **Verify**: Run `cargo build`, `cargo test`, `cargo fmt`, `cargo clippy`
 
 ### When Working on Lean 4
-1. **Spec first**: Update `Psudo/Spec.lean` before proofs
+1. **Spec first**: Update `lean/Spec.lean` before proofs
 2. **Use `partial def`**: For recursive functions that may not terminate
 3. **Prove incrementally**: Start with simple lemmas (literals, binary ops)
-4. **Check**: Run `lake build` in `lean/lean-verification/`
+4. **Check**: Run `lake build` in `lean/`
 
 ### When Adding Language Features
 1. Add token type in `lib.rs`
@@ -113,8 +115,9 @@ lake build
 | `src/lexer.rs` | Lexical analysis | Rust agent |
 | `src/parser.rs` | Parsing + interpretation | Rust agent |
 | `src/error_handler.rs` | Errors | Rust agent |
-| `lean/lean-verification/Psudo/Spec.lean` | Formal spec | Lean agent |
-| `lean/lean-verification/Psudo/Verification.lean` | Proofs | Lean agent |
+| `lean/Spec.lean` | Formal spec | Lean agent |
+| `lean/Verification.lean` | Proofs | Lean agent |
+| `lean/Psudo.lean` | Main module | Lean agent |
 | `tests/integration_tests.rs` | Integration tests | Rust agent |
 
 ## Do Not
@@ -122,6 +125,7 @@ lake build
 - Commit `target/` directory
 - Use `unwrap()` in production code paths
 - Skip tests when adding features
+- Create nested `lean-verification/` subdirectory
 
 ## Lean 4 Verification Status
 - [x] Specification complete
@@ -134,4 +138,4 @@ lake build
 
 ## Dependencies
 - Rust: 2021 edition, no external deps (stdlib only)
-- Lean: 4.10.0+, std library
+- Lean: 4.10.0+, std library (currently 4.35.0)

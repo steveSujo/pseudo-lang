@@ -1,0 +1,10 @@
+name = "test_lake_with_dep"
+version = "0.1.0"
+defaultTargets = ["test_lake_with_dep"]
+
+[[lean_lib]]
+name = "TestLakeWithDep"
+
+[[lean_exe]]
+name = "test_lake_with_dep"
+root = "Main"

@@ -1,0 +1,23 @@
+// Functions test
+fn add(a, b) => a + b;
+print add(2, 3);  // 5
+
+fn greet(name) { return "Hello " + name; }
+print greet("world");  // "Hello world"
+
+// Closure
+fn makeAdder(x) {
+    fn add(y) => x + y;
+    return add;
+}
+let add5 = makeAdder(5);
+print add5(10);  // 15
+
+// Recursion
+fn fact(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * fact(n - 1);
+}
+print fact(5);  // 120

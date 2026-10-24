@@ -1,4 +1,12 @@
-.pre-commit-config.yaml
-.cz.toml
 /target
 /notes
+.pre-commit-config.yaml
+.cz.toml
+
+# Lean 4 build artifacts
+/lean/.lake/
+/lean/lake-manifest.json
+/lean/TestLake*/
+/lean/test_lake*/
+/lean/*.lean.bak
+.omp/

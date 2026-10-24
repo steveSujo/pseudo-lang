@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::{
     error_handler::Errors,
-    tokens::{LiteralType, Token, TokenType},
+    tokens::{LiteralType, Token, TokenType, Span},
 };
 
 pub struct Lexer {
@@ -12,8 +12,9 @@ pub struct Lexer {
     start: usize,
     current: usize,
     line: usize,
+    column: usize,
+    start_column: usize,
 }
-
 impl Lexer {
     pub fn new(source: String) -> Self {
         Lexer {
@@ -22,23 +23,27 @@ impl Lexer {
             start: 0,
             current: 0,
             line: 1,
+            column: 1,
+            start_column: 1,
         }
     }
     pub fn scan_tokens(&mut self) -> Result<Vec<Token>, Errors> {
         let mut had_error = false;
         while !self.is_at_end() {
             self.start = self.current;
+            self.start_column = self.column;
             if let Err(e) = self.scan_token() {
                 println!("{}", e);
                 had_error = true;
             }
         }
 
-        self.token_list.push(Token::new(
+        let eof_span = Span::new(self.line, self.column, self.line, self.column);
+        self.token_list.push(Token::with_span(
             TokenType::EOF,
             String::default(),
             None,
-            self.line,
+            eof_span,
         ));
 
         if had_error {
@@ -47,6 +52,7 @@ impl Lexer {
             Ok(self.token_list.clone())
         }
     }
+
 
     pub fn get_tokens(&self) -> Vec<Token> {
         self.token_list.clone()
@@ -59,9 +65,18 @@ impl Lexer {
             ')' => self.add_token(TokenType::RightPara),
             '{' => self.add_token(TokenType::LeftBrace),
             '}' => self.add_token(TokenType::RightBrace),
+            '[' => self.add_token(TokenType::LeftBracket),
+            ']' => self.add_token(TokenType::RightBracket),
             ',' => self.add_token(TokenType::COMMA),
+            ':' => self.add_token(TokenType::COLON),
             '.' => self.add_token(TokenType::DOT),
-            '-' => self.add_token(TokenType::MINUS),
+            '-' => {
+                if self.match_next('>') {
+                    self.add_token(TokenType::ARROW);
+                } else {
+                    self.add_token(TokenType::MINUS);
+                }
+            }
             '+' => self.add_token(TokenType::PLUS),
             ';' => self.add_token(TokenType::SEMICOLON),
             '*' => self.add_token(TokenType::STAR),
@@ -74,12 +89,16 @@ impl Lexer {
                 self.add_token(token_type);
             }
             '=' => {
-                let token_type = if self.match_next('=') {
-                    TokenType::EqualEqual
+                if self.match_next('>') {
+                    self.add_token(TokenType::ARROW);
                 } else {
-                    TokenType::EQUAL
-                };
-                self.add_token(token_type);
+                    let token_type = if self.match_next('=') {
+                        TokenType::EqualEqual
+                    } else {
+                        TokenType::EQUAL
+                    };
+                    self.add_token(token_type);
+                }
             }
             '<' => {
                 let token_type = if self.match_next('=') {
@@ -102,6 +121,8 @@ impl Lexer {
                     while self.peek() != Some('\n') && !self.is_at_end() {
                         self.advance();
                     }
+                } else if self.match_next('*') {
+                    self.block_comment()?;
                 } else {
                     self.add_token(TokenType::SLASH)
                 }
@@ -131,6 +152,12 @@ impl Lexer {
         let character = self.source.chars().nth(self.current).unwrap();
 
         self.current += 1;
+        if character == '\n' {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
 
         character
     }
@@ -158,11 +185,12 @@ impl Lexer {
 
     fn add_token_with_literal(&mut self, token_type: TokenType, literal: Option<LiteralType>) {
         let sub_string = &self.source[self.start..self.current];
-        self.token_list.push(Token::new(
+        let span = Span::new(self.line, self.start_column, self.line, self.column);
+        self.token_list.push(Token::with_span(
             token_type,
             sub_string.to_string(),
             literal,
-            self.line,
+            span,
         ))
     }
 
@@ -192,6 +220,30 @@ impl Lexer {
             TokenType::STRING,
             Some(LiteralType::String(string_value.to_string())),
         );
+        Ok(())
+    }
+
+    fn block_comment(&mut self) -> Result<(), Errors> {
+        let mut depth = 1;
+        while depth > 0 && !self.is_at_end() {
+            match self.advance() {
+                '*' if self.peek() == Some('/') => {
+                    self.advance();
+                    depth -= 1;
+                }
+                '/' if self.peek() == Some('*') => {
+                    self.advance();
+                    depth += 1;
+                }
+                '\n' => {
+                    // line already tracked in advance()
+                }
+                _ => {}
+            }
+        }
+        if depth > 0 {
+            return Err(Errors::UnterminatedString); // reuse for now
+        }
         Ok(())
     }
 
@@ -233,7 +285,7 @@ impl Lexer {
             "class" => TokenType::CLASS,
             "else" => TokenType::ELSE,
             "false" => TokenType::FALSE,
-            "fun" => TokenType::FUN,
+            "fn" => TokenType::FN,
             "for" => TokenType::FOR,
             "if" => TokenType::IF,
             "nil" => TokenType::NIL,

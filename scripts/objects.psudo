@@ -1,0 +1,12 @@
+// Objects test
+let o = { name: "test", value: 42 };
+print o.name;      // "test"
+print o["value"];  // 42
+print keys(o);     // ["name", "value"]
+print values(o);   // ["test", 42]
+print has(o, "name");  // true
+print has(o, "missing");  // false
+
+// Nested objects
+let nested = { inner: { x: 1 } };
+print nested.inner.x;  // 1
