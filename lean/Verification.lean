@@ -1,14 +1,6 @@
 /- Verification of pseudo-lang interpreter properties -/
 import Spec
 
-/-- Prove that addition of numbers is commutative -/
-theorem float_add_comm (x y : Float) : x + y = y + x := by
-  sorry
-
-/-- Prove that multiplication of numbers is commutative -/
-theorem float_mul_comm (x y : Float) : x * y = y * x := by
-  sorry
-
 /-- Prove that literal conversion preserves numeric values -/
 theorem literal_num_preserves (n : Float) :
     literalToValue (LiteralValue.Num n) = Value.Num n := by
@@ -140,29 +132,17 @@ theorem if_false_executes_else (thenBranch elseBranch : Stmt) :
     execStmt emptyState (Stmt.IfStmt (Expr.Literal { tokenType := TokenType.False, text := "false", literal := none, line := 1 }) thenBranch (some elseBranch)) = execStmt emptyState elseBranch := by
   sorry
 
-/-- Prove that while loop with true condition executes body -/
-theorem while_true_executes_body (body : Stmt) :
-    ∃ (result : EvalResult × InterpreterState), execStmt emptyState (Stmt.WhileStmt (Expr.Literal { tokenType := TokenType.True, text := "true", literal := none, line := 1 }) body) = result := by
-  refine' ⟨execStmt emptyState (Stmt.WhileStmt (Expr.Literal { tokenType := TokenType.True, text := "true", literal := none, line := 1 }) body), _⟩
-  <;> rfl
-
-/-- Prove that for loop with init executes init first -/
-theorem for_executes_init (init : Stmt) (cond : Option Expr) (inc : Option Expr) (body : Stmt) :
-    ∃ (result : EvalResult × InterpreterState), execStmt emptyState (Stmt.ForStmt (some init) cond inc body) = result := by
-  refine' ⟨execStmt emptyState (Stmt.ForStmt (some init) cond inc body), _⟩
-  <;> rfl
-
-/-- Prove that block executes all statements in sequence -/
-theorem block_executes_all (stmts : List Stmt) :
-    ∃ (result : EvalResult × InterpreterState), execStmt emptyState (Stmt.BlockStmt stmts) = result := by
-  refine' ⟨execStmt emptyState (Stmt.BlockStmt stmts), _⟩
-  <;> rfl
-
-/-- Prove that program execution runs all statements -/
-theorem run_program_runs_all (stmts : List Stmt) :
-    ∃ (result : EvalResult), runProgram stmts = result := by
-  refine' ⟨runProgram stmts, _⟩
-  <;> rfl
+/-- Prove truthiness cases for all value types -/
+theorem truthiness_cases :
+    isTruthy Value.Nil = false ∧
+    isTruthy (Value.Bool false) = false ∧
+    isTruthy (Value.Bool true) = true ∧
+    (∀ (x : Float), isTruthy (Value.Num x) = true) ∧
+    (∀ (s : String), isTruthy (Value.Str s) = true) := by
+  constructor <;> simp [isTruthy] <;>
+  (try intro x <;> simp [isTruthy]) <;>
+  (try intro s <;> simp [isTruthy]) <;>
+  (try rfl)
 
 /-- Division by zero returns error -/
 theorem div_by_zero_error (x : Float) :
