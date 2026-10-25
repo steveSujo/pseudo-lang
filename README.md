@@ -1,6 +1,6 @@
 # pseudo-lang (psudo)
 
-A Rust implementation of the Lox language from "Crafting Interpreters" with a Lean 4 formal verification companion.
+A Rust implementation of the Lox language from "Crafting Interpreters" with a Lean 4 formal verification companion and **Language Server Protocol (LSP) support**.
 
 ## Features
 
@@ -11,6 +11,7 @@ A Rust implementation of the Lox language from "Crafting Interpreters" with a Le
 - **String concatenation**: `"a" + "b"` → `"ab"`
 - **Print statements**: `print expression;`
 - **REPL**: Interactive mode with `cargo run -- -i`
+- **LSP Server**: `cargo run -- --lsp` — hover, completion, diagnostics, semantic tokens
 
 ## Quick Start
 
@@ -23,6 +24,9 @@ cargo run -- -f scripts/hello.psudo
 
 # REPL
 cargo run -- -i
+
+# Language Server Protocol (for editors like VS Code)
+cargo run -- --lsp
 
 # Run all test scripts (Windows)
 scripts/run_all.bat
@@ -59,7 +63,10 @@ pseudo-lang/
 │   ├── lib.rs             # Public API, tokens
 │   ├── lexer.rs           # Lexical analysis
 │   ├── parser.rs          # Parsing + interpretation
-│   └── error_handler.rs   # Error types
+│   ├── error_handler.rs   # Error types
+│   └── lsp/               # Language Server Protocol
+│       ├── mod.rs         # LSP module exports
+│       └── backend.rs     # LSP backend implementation
 ├── scripts/               # Test scripts
 │   ├── hello.psudo
 │   ├── arithmetic.psudo
@@ -72,6 +79,8 @@ pseudo-lang/
 │   ├── run_all.bat
 │   └── run_all.sh
 ├── tests/                 # Integration tests
+│   ├── integration_tests.rs
+│   └── lsp_tests.rs       # LSP test suite
 ├── lean/                  # Lean 4 formal verification
 │   ├── Spec.lean          # Formal specification
 │   ├── Verification.lean  # Verification theorems
@@ -81,6 +90,36 @@ pseudo-lang/
 ├── Cargo.toml
 └── LICENSE.md
 ```
+
+## Language Server Protocol (LSP)
+
+The LSP server provides IDE support for pseudo-lang:
+
+```bash
+# Start LSP server (stdin/stdout)
+cargo run -- --lsp
+```
+
+### Supported LSP Features
+
+| Feature | Status |
+|---------|--------|
+| Initialize/Shutdown | ✅ |
+| Text Document Sync (did_open, did_change) | ✅ |
+| Hover (variables, keywords, operators) | ✅ |
+| Completion (keywords, built-ins, variables) | ✅ |
+| Diagnostics (syntax errors, undefined variables) | ✅ |
+| Semantic Tokens | ✅ |
+
+### Editor Integration (VS Code)
+
+Create `.vscode/settings.json`:
+```json
+{
+  "pseudo-lang.lsp.enabled": true
+}
+```
+Or use a generic LSP client configuration pointing to `cargo run -- --lsp`.
 
 ## Formal Verification (Lean 4)
 
@@ -111,6 +150,9 @@ cargo clippy
 
 # Test
 cargo test
+
+# Run LSP tests
+cargo test lsp
 
 # Lean verification
 cd lean && lake build
@@ -152,6 +194,7 @@ cd lean && lake build
 | Interpreter | ✅ Complete |
 | REPL | ✅ Complete |
 | Error handling | ✅ Complete |
+| LSP Server | ✅ Complete |
 | Lean spec | ✅ Complete |
 | Lean proofs | ⚠️ Partial (24/30) |
 
