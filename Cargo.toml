@@ -3,6 +3,19 @@ name = "psudo"
 version = "0.2.0"
 edition = "2021"
 
+[dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+url = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+lsp-types = { version = "0.95", features = [] }
+tower = "0.4"
+tower-service = "0.3"
+
 [[test]]
 name = "integration_tests"
 path = "tests/integration_tests.rs"
+
+[[test]]
+name = "lsp_tests"
