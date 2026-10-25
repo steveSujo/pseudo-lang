@@ -1,131 +1,244 @@
 use std::{
     env::{self, Args},
     fs::{self},
-    io,
+    io::{self, Write},
     path::PathBuf,
+    process,
 };
-
 use psudo::{
     fs::init_sandbox,
     lexer::Lexer,
     parser::{Interpret, Parser},
+    lsp::start_server,
 };
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const NAME: &str = env!("CARGO_PKG_NAME");
 
 #[derive(Default)]
 struct Config {
     is_interactive: bool,
-    file_path: PathBuf,
+    file_path: Option<PathBuf>,
+    show_tokens: bool,
+    show_ast: bool,
+    quiet: bool,
+    run_lsp: bool,
 }
-
-// impl Default for Config {
-//     fn default() -> Self {
-//         Config {
-//             is_interactive: false,
-//             file_path: PathBuf::def,
-//         }
-//     }
-// }
 
 fn main() {
-    let mut program_conf: Config = Config::default();
+    let mut config = Config::default();
+    let mut args: Vec<String> = env::args().collect();
 
-    //TODO: refactor CLI
-    let mut flags: Args = env::args().into_iter();
+    // Skip program name
+    if args.len() <= 1 {
+        config.is_interactive = true;
+        run_repl(&config);
+        return;
+    }
 
-    //skip the default exe path arg
-    flags.next();
-
-    if flags.len() >= 1 {
-        while let Some(flag) = flags.next() {
-            match flag.as_str() {
-                "-i" | "--interactive" => program_conf.is_interactive = true,
-                "-f" | "--file" => {
-                    if let Some(path) = flags.next() {
-                        program_conf.file_path = PathBuf::from(path);
-                    }
+    let mut i = 1;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        match arg {
+            "-h" | "--help" => {
+                print_help();
+                return;
+            }
+            "-V" | "--version" => {
+                println!("{} {}", NAME, VERSION);
+                return;
+            }
+            "-i" | "--interactive" => config.is_interactive = true,
+            "-f" | "--file" => {
+                i += 1;
+                if i < args.len() {
+                    config.file_path = Some(PathBuf::from(&args[i]));
+                } else {
+                    eprintln!("Error: --file requires a path argument");
+                    process::exit(1);
                 }
-                "-h" | "--help" => {
-                    print_help();
-                    break;
+            }
+            "-t" | "--tokens" => config.show_tokens = true,
+            "-a" | "--ast" => config.show_ast = true,
+            "-q" | "--quiet" => config.quiet = true,
+            "--lsp" => config.run_lsp = true,
+            arg if arg.starts_with('-') => {
+                eprintln!("Error: Unknown argument '{}'", arg);
+                print_help();
+                process::exit(1);
+            }
+            _ => {
+                // Positional argument = file
+                if config.file_path.is_none() {
+                    config.file_path = Some(PathBuf::from(arg));
+                } else {
+                    eprintln!("Error: Multiple input files not supported");
+                    process::exit(1);
                 }
-                _ => println!("Unknown Argument Passed!"),
             }
         }
+        i += 1;
+    }
+
+    if config.run_lsp {
+        if let Err(e) = run_lsp_server() {
+            eprintln!("LSP server error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
+    if config.is_interactive {
+        run_repl(&config);
+    } else if let Some(path) = &config.file_path {
+        run_file(path, &config);
     } else {
-        //start interactive promtp
-        program_conf.is_interactive = true;
+        run_repl(&config);
     }
-
-    match program_conf {
-        Config {
-            is_interactive: true,
-            ..
-        } => run_prompt(),
-        Config {
-            is_interactive: false,
-            file_path: path,
-        } => run_file(path),
-    };
 }
+
+fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        start_server().await;
+    });
+    Ok(())
+}
+
 fn print_help() {
-    println!(
-        "\nUsage: pseudo [Option] \
-             \n\nOptions:\
-              \n\t-h,--help\t\tDisplay this help\
-              \n\t-i,--interactive\tStart interactive Prompt (default if no file is passed)\
-              \n\t-f,--file\t\tInput file to interpret\
-"
-    )
+    println!(r#"
+{} {} - Lox-inspired interpreter with LSP support
+Usage: {} [OPTIONS] [FILE]
+
+Arguments:
+  [FILE]    Input file to interpret (.psudo extension)
+
+Options:
+  -h, --help       Show this help message
+  -V, --version    Show version
+  -i, --interactive  Start interactive REPL (default if no file)
+  -f, --file <PATH>  Input file to interpret
+  -t, --tokens       Show tokens after lexing
+  -a, --ast          Show AST after parsing
+  -q, --quiet        Suppress token/AST output, only show results
+      --lsp          Start Language Server Protocol server (stdin/stdout)
+
+Examples:
+  {} -f scripts/hello.psudo
+  {} -i
+  {} -f script.psudo -t -a
+  {} --lsp
+"#, NAME, VERSION, NAME, NAME, NAME, NAME, NAME);
 }
 
-fn run_file(path: PathBuf) {
-    println!("\nfrom run file {}\n", path.display());
+fn run_file(path: &PathBuf, config: &Config) {
+    if !config.quiet {
+        println!("📄 Running: {}", path.display());
+    }
 
-    let source = fs::read_to_string(path).expect("Could not open file");
+    let source = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Error reading '{}': {}", path.display(), e);
+            process::exit(1);
+        }
+    };
 
-    run(source);
+    run_source(&source, config);
 }
 
-fn run_prompt() {
+fn run_repl(config: &Config) {
+    if !config.quiet {
+        println!("{} {} - Interactive REPL", NAME, VERSION);
+        println!("Type 'exit' or Ctrl+D to quit\n");
+    }
+
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+
     loop {
+        if !config.quiet {
+            print!("> ");
+            stdout.flush().ok();
+        }
+
         let mut line = String::new();
-        println!(">>");
-        io::stdin().read_line(&mut line).expect("fail to read line");
+        match stdin.read_line(&mut line) {
+            Ok(0) => break, // EOF
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
+        }
 
-        if line.is_empty() || line == "\n" {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line == "exit" || line == "quit" {
             break;
-        };
+        }
 
-        run(line)
-        // debug_exp_print()
+        run_source(line, config);
+    }
+
+    if !config.quiet {
+        println!("\nBye!");
     }
 }
 
-fn run(source: String) {
+fn run_source(source: &str, config: &Config) {
     // Initialize sandbox
     if let Err(e) = init_sandbox(None) {
         eprintln!("Failed to initialize sandbox: {}", e);
         return;
     }
 
-    let mut lexer = Lexer::new(source.trim().to_owned());
-    let token_list_result = lexer.scan_tokens();
-    let token_list = match token_list_result {
+    let mut lexer = Lexer::new(source.to_owned());
+    let tokens = match lexer.scan_tokens() {
         Ok(tokens) => tokens,
-        Err(_) => {
-            println!("Lexer had errors, attempting to parse anyway...");
+        Err(e) => {
+            eprintln!("Lexer error: {}", e);
+            if !config.quiet {
+                println!("Attempting to parse anyway...");
+            }
             lexer.get_tokens()
         }
     };
-    println!("Tokens: {:?}", token_list);
-    let mut parser = Parser::new(token_list);
-    let mut interpreter = Interpret::default();
+
+    if config.show_tokens && !config.quiet {
+        println!("🔤 Tokens:");
+        for token in &tokens {
+            println!("  {:?}", token);
+        }
+        println!();
+    }
+
+    let mut parser = Parser::new(tokens);
     match parser.parse() {
         Ok(statements) => {
+            if config.show_ast && !config.quiet {
+                println!("🌳 AST:");
+                for stmt in &statements {
+                    println!("  {:?}", stmt);
+                }
+                println!();
+            }
+
+            let mut interpreter = Interpret::default();
             for stmt in statements {
                 interpreter.execute(&stmt);
             }
         }
-        Err(err) => println!("Parser error: {}", err),
+        Err(err) => {
+            eprintln!("Parse error: {}", err);
+            process::exit(1);
+        }
     }
 }
+
+
+
+
+

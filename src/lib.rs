@@ -1,7 +1,8 @@
 pub mod error_handler;
 pub mod lexer;
 pub mod parser;
-pub mod lsp;
+pub mod fs;
+ pub mod lsp;
 pub mod tokens {
     use std::fmt::{self, Display};
 

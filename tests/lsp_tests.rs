@@ -1,16 +1,17 @@
 use psudo::lsp::Backend;
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp::{LanguageServer, LspService};
 use tower_lsp::lsp_types::*;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-/// Helper to create a test backend with a mock client
+/// Helper to create a test backend using LspService builder
 async fn create_test_backend() -> Arc<Backend> {
-    let client = tower_lsp::Client::new();
-    Arc::new(Backend::new(client))
+    // Use LspService::build to create a client properly
+    let (service, _socket) = LspService::build(|client| Backend::new(client)).finish();
+    // Get the inner backend from the service
+    let backend = service.inner().clone();
+    Arc::new(backend)
 }
-
-/// Test initialize request
 #[tokio::test]
 async fn test_initialize() {
     let backend = create_test_backend().await;

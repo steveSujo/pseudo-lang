@@ -22,6 +22,7 @@ pub struct Document {
 }
 
 /// The backend state for the LSP server
+#[derive(Clone)]
 pub struct Backend {
     pub client: Arc<Mutex<Option<Client>>>,
     pub documents: Arc<Mutex<HashMap<String, Document>>>,
@@ -111,12 +112,15 @@ impl Backend {
 
     /// Find token at position
     fn token_at_position<'a>(&self, tokens: &'a [Token], line: u32, character: u32) -> Option<&'a Token> {
+        // LSP uses 0-indexed positions, lexer uses 1-indexed
+        let lsp_line = line + 1;
+        let lsp_char = character + 1;
         for token in tokens {
             let token_line = token.span.start_line as u32;
             let token_start = token.span.start_col as u32;
             let token_end = token.span.end_col as u32;
             
-            if token_line == line && character >= token_start && character <= token_end {
+            if token_line == lsp_line && lsp_char >= token_start && lsp_char <= token_end {
                 return Some(token);
             }
         }
@@ -331,47 +335,40 @@ impl LanguageServer for Backend {
 
     async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri.to_string();
-        
-        let doc = match self.get_document(&uri).await {
-            Some(doc) => doc,
-            None => return Ok(None),
-        };
-
         let mut tokens_data = Vec::new();
-        let mut prev_line = 0;
-        let mut prev_char = 0;
+        let mut prev_line = 0u32;
+        let mut prev_char = 0u32;
 
-        for token in &doc.tokens {
-            let token_type = match token.token_type {
-                TokenType::LET | TokenType::IF | TokenType::ELSE | TokenType::WHILE | 
-                TokenType::FOR | TokenType::PRINT | TokenType::TRUE | TokenType::FALSE |
-                TokenType::AND | TokenType::OR | TokenType::FN | TokenType::RETURN |
-                TokenType::NIL | TokenType::CLASS | TokenType::THIS => 0, // KEYWORD
-                TokenType::IDENTIFIER => 1, // VARIABLE
-                TokenType::NUMBER => 3, // NUMBER
-                TokenType::STRING => 4, // STRING
-                TokenType::PLUS | TokenType::MINUS | TokenType::STAR | TokenType::SLASH |
-                TokenType::EQUAL | TokenType::EqualEqual | TokenType::BangEqual |
-                TokenType::LESS | TokenType::LessEqual | TokenType::GREATER |
-                TokenType::GreaterEqual | TokenType::BANG => 5, // OPERATOR
-                _ => continue,
-            };
+        let documents = self.documents.lock().await;
+        if let Some(doc) = documents.get(&uri) {
+            for token in &doc.tokens {
+                let line = token.span.start_line as u32;
+                let start_char = token.span.start_col as u32;
+                let length = (token.span.end_col - token.span.start_col) as u32;
 
-            let line = token.span.start_line as u32;
-            let start_char = token.span.start_col as u32;
-            let length = (token.span.end_col - token.span.start_col) as u32;
+                let token_type = match token.token_type {
+                    TokenType::NUMBER => 0,
+                    TokenType::STRING => 1,
+                    TokenType::IDENTIFIER => 2,
+                    TokenType::LET | TokenType::FN | TokenType::IF | TokenType::ELSE | TokenType::WHILE | TokenType::FOR | TokenType::PRINT | TokenType::RETURN | TokenType::TRUE | TokenType::FALSE | TokenType::NIL => 3,
+                    TokenType::PLUS | TokenType::MINUS | TokenType::STAR | TokenType::SLASH | TokenType::EQUAL | TokenType::BangEqual | TokenType::EqualEqual | TokenType::GREATER | TokenType::GreaterEqual | TokenType::LESS | TokenType::LessEqual | TokenType::BANG | TokenType::AND | TokenType::OR => 4,
+                    _ => 5,
+                };
 
-            let delta_line = line - prev_line;
-            let delta_start = if delta_line == 0 { start_char - prev_char } else { start_char };
+                let delta_line = line - prev_line;
+                let delta_start = if delta_line == 0 { start_char - prev_char } else { start_char };
 
-            tokens_data.push(delta_line);
-            tokens_data.push(delta_start);
-            tokens_data.push(length);
-            tokens_data.push(token_type);
-            tokens_data.push(0); // modifiers
+                tokens_data.push(SemanticToken {
+                    delta_line,
+                    delta_start,
+                    length,
+                    token_type,
+                    token_modifiers_bitset: 0,
+                });
 
-            prev_line = line;
-            prev_char = start_char;
+                prev_line = line;
+                prev_char = start_char;
+            }
         }
 
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
