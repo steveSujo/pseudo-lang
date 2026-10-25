@@ -23,6 +23,7 @@ struct Config {
     show_ast: bool,
     quiet: bool,
     run_lsp: bool,
+    show_syntax: bool,
 }
 
 fn main() {
@@ -61,7 +62,8 @@ fn main() {
             "-t" | "--tokens" => config.show_tokens = true,
             "-a" | "--ast" => config.show_ast = true,
             "-q" | "--quiet" => config.quiet = true,
-            "--lsp" => config.run_lsp = true,
+            "-s" | "--syntax" => config.show_syntax = true,
+             "--lsp" => config.run_lsp = true,
             arg if arg.starts_with('-') => {
                 eprintln!("Error: Unknown argument '{}'", arg);
                 print_help();
@@ -88,6 +90,11 @@ fn main() {
         return;
     }
 
+    if config.show_syntax {
+        print_syntax();
+        return;
+    }
+
     if config.is_interactive {
         run_repl(&config);
     } else if let Some(path) = &config.file_path {
@@ -105,6 +112,7 @@ fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+
 fn print_help() {
     println!(r#"
 {} {} - Lox-inspired interpreter with LSP support
@@ -121,6 +129,7 @@ Options:
   -t, --tokens       Show tokens after lexing
   -a, --ast          Show AST after parsing
   -q, --quiet        Suppress token/AST output, only show results
+  -s, --syntax       Show compressed syntax reference for LLM context
       --lsp          Start Language Server Protocol server (stdin/stdout)
 
 Examples:
@@ -128,7 +137,31 @@ Examples:
   {} -i
   {} -f script.psudo -t -a
   {} --lsp
-"#, NAME, VERSION, NAME, NAME, NAME, NAME, NAME);
+  {} -s > note/syntax.md
+"#, NAME, VERSION, NAME, NAME, NAME, NAME, NAME, NAME);
+}
+
+fn print_syntax() {
+    let syntax = r#"psudo syntax (compressed):
+
+Literals: num (f32), "str", true/false, nil
+Vars: let x = expr; x = expr;
+Print: print expr;
+Blocks: { stmt; stmt; }
+If: if (cond) { ... } else { ... }
+While: while (cond) { ... }
+For: for (init; cond; inc) { ... }
+
+Ops (prec high→low): - ! (unary,r) * / (l) + - (l) < > <= >= (l) == != (l) = (assign,r)
+Str concat: "a" + "b" → "ab"
+
+Builtins: read_file(path), write_file(path,str), list_dir(path), exists(path), is_file(path), is_dir(path), mkdir(path)
+Sandbox: all fs ops confined to ./sandbox/
+
+Comments: // line, /* block */
+End: ; required
+EOF"#;
+    println!("{}", syntax);
 }
 
 fn run_file(path: &PathBuf, config: &Config) {
