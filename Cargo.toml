@@ -17,6 +17,7 @@ cranelift-codegen = { version = "0.109", features = ["default"] }
 cranelift-frontend = { version = "0.109", features = ["default"] }
 cranelift-module = { version = "0.109", features = ["default"] }
 cranelift-native = { version = "0.109", features = ["default"] }
+cranelift-object = "0.109"
 target-lexicon = "0.12"
 object = "0.32"
 goblin = "0.7"

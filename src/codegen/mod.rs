@@ -140,14 +140,15 @@ impl Default for CodegenContext {
     }
 }
 
+
 /// Compile MIR program to object file (placeholder)
 pub fn compile_mir_to_object(_program: &MirProgram, _output_path: &str) -> Result<(), String> {
-    let mut ctx = CodegenContext::new(TargetSpec::host());
+    let mut ctx = CodegenContext::for_host().unwrap();
     ctx.compile_program(_program)
 }
 
 /// Compile MIR program for a specific target
 pub fn compile_mir_for_target(_program: &MirProgram, _target_triple: &str, _output_path: &str) -> Result<(), String> {
-    let mut ctx = CodegenContext::new(TargetSpec::host());
+    let mut ctx = CodegenContext::for_target("x86_64-unknown-linux-gnu").unwrap();
     ctx.compile_program(_program)
 }
