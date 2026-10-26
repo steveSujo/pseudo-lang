@@ -1,0 +1,16 @@
+{
+  "name": "update-changelog",
+  "description": "Update CHANGELOG.md from git history",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string",
+        "description": "Version being released (e.g., 0.2.0)"
+      }
+    },
+    "required": ["version"]
+  },
+  "handler": "bash",
+  "script": "cd /workspace && git log --pretty=format:\"- %s (%h)\" $(git describe --tags --abbrev=0 HEAD^)..HEAD > /tmp/changelog_new.md && sed -i '1i## [$VERSION] - $(date +%Y-%m-%d)' /tmp/changelog_new.md && sed -i '2i\\n### Added' /tmp/changelog_new.md && sed -i '/## \\[Unreleased\\]/r /tmp/changelog_new.md' CHANGELOG.md && sed -i '/## \\[Unreleased\\]/a\\n### Added\\n- (add items here)' CHANGELOG.md && echo \"CHANGELOG.md updated for $VERSION\""
+}

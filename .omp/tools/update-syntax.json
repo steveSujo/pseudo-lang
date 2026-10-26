@@ -1,0 +1,11 @@
+{
+  "name": "update-syntax",
+  "description": "Update syntax reference (note/syntax.md) from CLI",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  },
+  "handler": "bash",
+  "script": "cd /workspace && cargo run -- -s > note/syntax.md && echo \"note/syntax.md updated\""
+}

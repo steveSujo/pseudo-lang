@@ -1,0 +1,21 @@
+{
+  "name": "bump-version",
+  "description": "Bump version in Cargo.toml and create git tag",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "version": {
+        "type": "string",
+        "description": "New version (e.g., 0.3.0)"
+      },
+      "type": {
+        "type": "string",
+        "enum": ["major", "minor", "patch"],
+        "description": "Bump type"
+      }
+    },
+    "required": ["type"]
+  },
+  "handler": "bash",
+  "script": "cd /workspace && VERSION=$(cargo metadata --format-version=1 2>/dev/null | jq -r '.packages[] | select(.name==\"psudo\") | .version') && case $TYPE in major) NEW=$(echo $VERSION | awk -F. '{print ($1+1)".0.0"}') ;; minor) NEW=$(echo $VERSION | awk -F. '{print $1"."($2+1)".0"}') ;; patch) NEW=$(echo $VERSION | awk -F. '{print $1"."$2"."($3+1)}') ;; esac && sed -i "s/version = \"$VERSION\"/version = \"$NEW\"/" Cargo.toml && git add Cargo.toml && git commit -m "chore: bump version to $NEW" && git tag v$NEW && echo "Bumped to $NEW"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "test-suite",
+  "description": "Run full test suite (cargo test, cargo clippy, cargo fmt --check)",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  },
+  "handler": "bash",
+  "script": "cd /workspace && cargo fmt --check && cargo clippy -- -D warnings && cargo test && echo \"All checks passed\""
+}

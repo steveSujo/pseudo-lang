@@ -1,0 +1,22 @@
+{
+  "name": "milestone-commit",
+  "description": "Create a milestone commit with conventional format, update changelog, and push",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string",
+        "description": "Commit message (conventional format)"
+      },
+      "bump": {
+        "type": "string",
+        "enum": ["major", "minor", "patch", "none"],
+        "description": "Version bump type",
+        "default": "minor"
+      }
+    },
+    "required": ["message"]
+  },
+  "handler": "bash",
+  "script": "cd /workspace && git add -A && git commit -m \"$MESSAGE\" && if [ \"$BUMP\" != \"none\" ]; then /workspace/.omp/tools/bump-version.json $BUMP; fi && git push && git push --tags"
+}

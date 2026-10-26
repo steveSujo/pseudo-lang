@@ -8,29 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Phase 2: Cranelift x86_64 Linux codegen backend (planned)
+
+## [0.2.0] - 2024-10-26
+
+### Added
 - Phase 1: Ownership IR and Borrow Checker implementation
 - `src/ownership.rs` - BorrowChecker, CheckedEnvironment, MoveError, BorrowError
 - `CheckedInterpret` in parser.rs with full ExpressionVisitor implementation
 - `-b/--check-borrows` CLI flag for borrow checking mode
 - Borrow checker integration tests (use-after-move, double borrow, reassignment)
-
-## [0.2.0] - 2024-10-24
-
-### Added
-- Lean 4 formal verification with 24/30 theorems proven (6 marked `sorry`)
-- Lean specification in `lean/Spec.lean`, proofs in `lean/Verification.lean`
-- Sandboxed filesystem standard library (`read_file`, `write_file`, `list_dir`, etc.)
-- Project configuration system (`psudo.toml`) with auto-detection
-- LSP server with tower-lsp (initialize, did_change, hover, completion, diagnostics, semantic tokens)
-- CLI improvements: `-t/--tokens`, `-a/--ast`, `-q/--quiet`, `-s/--syntax`, `--lsp`, `-V/--version`
-- `note/syntax.md` and `note/psudo.toml.example` for syntax reference
-- `.omp/RULES.md` and `.omp/ROADMAP.md` for project governance
-- 6 minimal LLM-friendly language features
+- Version tracking in ROADMAP.md and version bump rule in .omp/RULES.md
+- Git tag v0.2.0
+- Custom OMP tools: bump-version, milestone-commit, update-changelog, update-syntax, test-suite, generate-changelog
 
 ### Fixed
-- Lean 4 verification build with core-only tactics
-- Sandbox test initialization with `Once`
-- Parser implementation with visitor pattern
+- Parser compilation errors resolved
+- Borrow checker move tracking for reassignments
 
 ## [0.1.0] - 2024-10-23
 
@@ -71,3 +65,11 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 git log --pretty=format:"- %s (%h)" --reverse > CHANGELOG_TEMPLATE.md
 # Then curate and format into CHANGELOG.md
 ```
+
+### OMP Custom Tools (in `.omp/tools/`)
+- `bump-version` - Bump version in Cargo.toml and create git tag
+- `milestone-commit` - Create milestone commit, bump version, push
+- `update-changelog` - Update CHANGELOG.md from recent commits
+- `update-syntax` - Update note/syntax.md from CLI
+- `test-suite` - Run full test suite (fmt, clippy, test)
+- `generate-changelog` - Generate full CHANGELOG.md from git history
