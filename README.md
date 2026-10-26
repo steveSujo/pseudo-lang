@@ -17,16 +17,25 @@ A Rust implementation of the Lox language from "Crafting Interpreters" with a Le
 
 ```bash
 # Build
-cargo build
+cargo build --release
 
-# Run file
-cargo run -- -f scripts/hello.psudo
+# Run file (using built artifact)
+./target/release/psudo -f scripts/hello.psudo
 
-# REPL
-cargo run -- -i
+# REPL (using built artifact)
+./target/release/psudo -i
 
 # Language Server Protocol (for editors like VS Code)
-cargo run -- --lsp
+./target/release/psudo --lsp
+
+# Show tokens
+./target/release/psudo -f scripts/hello.psudo -t
+
+# Show AST
+./target/release/psudo -f scripts/hello.psudo -a
+
+# Show syntax reference
+./target/release/psudo -s
 
 # Run all test scripts (Windows)
 scripts/run_all.bat
@@ -34,6 +43,8 @@ scripts/run_all.bat
 # Run all test scripts (Unix)
 ./scripts/run_all.sh
 ```
+
+*Note: On Windows, use `target\release\psudo.exe` instead of `./target/release/psudo`*
 
 ## Example
 
@@ -97,7 +108,7 @@ The LSP server provides IDE support for pseudo-lang:
 
 ```bash
 # Start LSP server (stdin/stdout)
-cargo run -- --lsp
+./target/release/psudo --lsp
 ```
 
 ### Supported LSP Features
