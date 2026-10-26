@@ -4,7 +4,7 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use crate::config::{ProjectConfig, load_project_config, resolve_sandbox_root};
+use crate::config::{load_project_config, resolve_sandbox_root, ProjectConfig};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FSError {
@@ -34,7 +34,9 @@ static CONFIG: LazyLock<Mutex<Option<ProjectConfig>>> = LazyLock::new(|| Mutex::
 
 /// Initialize sandbox with project config
 pub fn init_sandbox_with_config(config: ProjectConfig) -> Result<(), FSError> {
-    let mut guard = CONFIG.lock().map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
+    let mut guard = CONFIG
+        .lock()
+        .map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
     if guard.is_some() {
         return Err(FSError::IOError("Sandbox already initialized".to_string()));
     }
@@ -43,7 +45,8 @@ pub fn init_sandbox_with_config(config: ProjectConfig) -> Result<(), FSError> {
 }
 
 fn get_config() -> ProjectConfig {
-    CONFIG.lock()
+    CONFIG
+        .lock()
         .ok()
         .and_then(|g| g.clone())
         .unwrap_or_else(load_project_config)
@@ -77,14 +80,17 @@ pub fn init_sandbox(root: Option<PathBuf>) -> Result<(), FSError> {
             // If sandbox doesn't exist, create it
             if e.kind() == std::io::ErrorKind::NotFound {
                 fs::create_dir_all(&root).map_err(|e| FSError::IOError(e.to_string()))?;
-                root.canonicalize().map_err(|e| FSError::IOError(e.to_string()))?
+                root.canonicalize()
+                    .map_err(|e| FSError::IOError(e.to_string()))?
             } else {
                 return Err(FSError::IOError(e.to_string()));
             }
         }
     };
 
-    let mut guard = SANDBOX_ROOT.lock().map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
+    let mut guard = SANDBOX_ROOT
+        .lock()
+        .map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
     if guard.is_some() {
         return Err(FSError::IOError("Sandbox already initialized".to_string()));
     }
@@ -96,10 +102,11 @@ pub fn init_sandbox(root: Option<PathBuf>) -> Result<(), FSError> {
     Ok(())
 }
 
-
 /// Get the sandbox root path.
 fn sandbox_root() -> Result<PathBuf, FSError> {
-    let guard = SANDBOX_ROOT.lock().map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
+    let guard = SANDBOX_ROOT
+        .lock()
+        .map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
     guard.clone().ok_or(FSError::IOError(
         "Sandbox not initialized. Call init_sandbox() first.".to_string(),
     ))
@@ -128,11 +135,15 @@ fn resolve_path(user_path: &str) -> Result<PathBuf, FSError> {
 
     // Try to canonicalize - if it doesn't exist, canonicalize the parent
     let canonical = if full_path.exists() {
-        full_path.canonicalize().map_err(|e| FSError::IOError(e.to_string()))?
+        full_path
+            .canonicalize()
+            .map_err(|e| FSError::IOError(e.to_string()))?
     } else {
         // For new files, canonicalize the parent directory
         let parent = full_path.parent().unwrap_or(&root);
-        let canonical_parent = parent.canonicalize().map_err(|e| FSError::IOError(e.to_string()))?;
+        let canonical_parent = parent
+            .canonicalize()
+            .map_err(|e| FSError::IOError(e.to_string()))?;
         canonical_parent.join(full_path.file_name().unwrap_or_default())
     };
 
@@ -149,7 +160,9 @@ fn sandbox_size(root: &Path) -> Result<u64, FSError> {
     let mut total = 0u64;
     for entry in fs::read_dir(root).map_err(|e| FSError::IOError(e.to_string()))? {
         let entry = entry.map_err(|e| FSError::IOError(e.to_string()))?;
-        let metadata = entry.metadata().map_err(|e| FSError::IOError(e.to_string()))?;
+        let metadata = entry
+            .metadata()
+            .map_err(|e| FSError::IOError(e.to_string()))?;
         if metadata.is_file() {
             total += metadata.len();
         } else if metadata.is_dir() {
@@ -167,15 +180,14 @@ fn check_sandbox_size(root: &Path) -> Result<(), FSError> {
     }
     Ok(())
 }
- /// Check file size limit.
- fn check_file_size(path: &Path) -> Result<(), FSError> {
-     let metadata = fs::metadata(path).map_err(|e| FSError::IOError(e.to_string()))?;
+/// Check file size limit.
+fn check_file_size(path: &Path) -> Result<(), FSError> {
+    let metadata = fs::metadata(path).map_err(|e| FSError::IOError(e.to_string()))?;
     if metadata.len() > max_file_size() {
-         return Err(FSError::TooLarge);
-     }
-     Ok(())
- }
-
+        return Err(FSError::TooLarge);
+    }
+    Ok(())
+}
 
 /// Read a file from the sandbox.
 pub fn read_file(path: &str) -> Result<String, FSError> {
@@ -190,8 +202,8 @@ pub fn write_file(path: &str, content: &str) -> Result<(), FSError> {
 
     // Check content size before writing
     if content.len() as u64 > max_file_size() {
-         return Err(FSError::TooLarge);
-     }
+        return Err(FSError::TooLarge);
+    }
 
     // Ensure parent directory exists
     if let Some(parent) = resolved.parent() {

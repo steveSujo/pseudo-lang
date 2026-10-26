@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "psudo"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "lsp-types 0.95.1",
  "serde",

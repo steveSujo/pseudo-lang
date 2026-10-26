@@ -1,10 +1,10 @@
+pub mod config;
 pub mod error_handler;
+pub mod fs;
 pub mod lexer;
+pub mod lsp;
+pub mod ownership;
 pub mod parser;
- pub mod fs;
- pub mod config;
- pub mod lsp;
- pub mod ownership;
 pub mod tokens {
     use std::fmt::{self, Display};
 
@@ -93,16 +93,31 @@ pub mod tokens {
 
     impl Span {
         pub fn new(start_line: usize, start_col: usize, end_line: usize, end_col: usize) -> Self {
-            Span { start_line, start_col, end_line, end_col }
+            Span {
+                start_line,
+                start_col,
+                end_line,
+                end_col,
+            }
         }
         pub fn single(line: usize, col: usize) -> Self {
-            Span { start_line: line, start_col: col, end_line: line, end_col: col }
+            Span {
+                start_line: line,
+                start_col: col,
+                end_line: line,
+                end_col: col,
+            }
         }
     }
 
     impl Default for Span {
         fn default() -> Self {
-            Span { start_line: 1, start_col: 1, end_line: 1, end_col: 1 }
+            Span {
+                start_line: 1,
+                start_col: 1,
+                end_line: 1,
+                end_col: 1,
+            }
         }
     }
 

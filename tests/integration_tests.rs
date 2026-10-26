@@ -1,5 +1,9 @@
-use psudo::{lexer::Lexer, parser::{Interpret, Parser, CheckedInterpret}, ownership::{CheckedEnvironment, BorrowChecker}};
-use std::{rc::Rc, cell::RefCell};
+use psudo::{
+    lexer::Lexer,
+    ownership::{BorrowChecker, CheckedEnvironment},
+    parser::{CheckedInterpret, Interpret, Parser},
+};
+use std::{cell::RefCell, rc::Rc};
 
 fn run_test(source: &str) {
     let mut lexer = Lexer::new(source.to_string());
@@ -27,8 +31,7 @@ fn run_checked_test(source: &str) {
     }
 }
 
- 
- #[test]
+#[test]
 fn test_arithmetic() {
     run_test("print 1 + 2;");
     run_test("print 3 * 4;");
@@ -71,46 +74,46 @@ fn test_if_else() {
     run_test("if (true) { print \"yes\"; } else { print \"no\"; }");
     run_test("if (false) { print \"yes\"; } else { print \"no\"; }");
 }
- 
- #[test]
- fn test_use_after_move() {
-     // This should detect use-after-move when -b flag is used
-     // In checked mode, the second use of x should report an error
-     let source = "let x = 10; let y = x; print y;";
-     run_checked_test(source);
- }
- 
- #[test]
- fn test_borrow_checker_basic() {
-     // Basic borrow checking should work without errors
-     let source = "let x = 10; print x;";
-     run_checked_test(source);
- }
- 
- #[test]
- fn test_reassignment_allowed() {
-     // Reassignment should work
-    }
- 
- #[test]
- fn test_double_borrow() {
-     // Multiple immutable borrows should be allowed
-     let source = "let x = 10; let y = x; let z = x; print y + z;";
-     run_checked_test(source);
- }
- 
- #[test]
- fn test_mutable_then_immutable() {
-     // Mutable borrow followed by immutable should error
-     // Note: current language doesn't have explicit borrow syntax
-     // This tests internal borrow tracking
-    }
- 
- #[test]
- fn test_mutable_immutable_conflict() {
-     // This tests the concept: use a variable (immutable borrow),
-     // then try to reassign (mutable borrow) - should error in full implementation
-     // Currently tests that reassignment after use works
-     let source = "let x = 10; print x; x = 20; print x;";
-     run_checked_test(source);
- }
+
+#[test]
+fn test_use_after_move() {
+    // This should detect use-after-move when -b flag is used
+    // In checked mode, the second use of x should report an error
+    let source = "let x = 10; let y = x; print y;";
+    run_checked_test(source);
+}
+
+#[test]
+fn test_borrow_checker_basic() {
+    // Basic borrow checking should work without errors
+    let source = "let x = 10; print x;";
+    run_checked_test(source);
+}
+
+#[test]
+fn test_reassignment_allowed() {
+    // Reassignment should work
+}
+
+#[test]
+fn test_double_borrow() {
+    // Multiple immutable borrows should be allowed
+    let source = "let x = 10; let y = x; let z = x; print y + z;";
+    run_checked_test(source);
+}
+
+#[test]
+fn test_mutable_then_immutable() {
+    // Mutable borrow followed by immutable should error
+    // Note: current language doesn't have explicit borrow syntax
+    // This tests internal borrow tracking
+}
+
+#[test]
+fn test_mutable_immutable_conflict() {
+    // This tests the concept: use a variable (immutable borrow),
+    // then try to reassign (mutable borrow) - should error in full implementation
+    // Currently tests that reassignment after use works
+    let source = "let x = 10; print x; x = 20; print x;";
+    run_checked_test(source);
+}

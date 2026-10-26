@@ -1,18 +1,18 @@
+use psudo::{
+    fs::init_sandbox,
+    lexer::Lexer,
+    lsp::start_server,
+    ownership::{BorrowChecker, CheckedEnvironment},
+    parser::{CheckedInterpret, Interpret, Parser},
+};
 use std::{
-    env::{self, Args},
+    cell::RefCell,
+    env::{self},
     fs::{self},
     io::{self, Write},
     path::PathBuf,
     process,
     rc::Rc,
-    cell::RefCell,
-};
-use psudo::{
-    fs::init_sandbox,
-    lexer::Lexer,
-    parser::{Interpret, Parser, CheckedInterpret},
-    ownership::{CheckedEnvironment, BorrowChecker},
-    lsp::start_server,
 };
 
 enum InterpreterMode {
@@ -20,7 +20,7 @@ enum InterpreterMode {
     Checked(CheckedInterpret),
 }
 
- const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const NAME: &str = env!("CARGO_PKG_NAME");
 #[derive(Default)]
 struct Config {
@@ -35,8 +35,8 @@ struct Config {
 }
 
 fn main() {
-     let mut config = Config::default();
-    let mut args: Vec<String> = env::args().collect();
+    let mut config = Config::default();
+    let args: Vec<String> = env::args().collect();
 
     // Skip program name
     if args.len() <= 1 {
@@ -122,7 +122,8 @@ fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn print_help() {
-    println!(r###"{} {} - Lox-inspired interpreter with LSP support
+    println!(
+        r###"{} {} - Lox-inspired interpreter with LSP support
 Usage: {} [OPTIONS] [FILE]
 
 Arguments:
@@ -148,7 +149,9 @@ Examples:
   {} -f scripts/hello.psudo
   {} -i
   {} -f script.psudo -t -a
-  {} -s > note/syntax.md"###, NAME, VERSION, NAME, NAME, NAME, NAME, NAME);
+  {} -s > note/syntax.md"###,
+        NAME, VERSION, NAME, NAME, NAME, NAME, NAME
+    );
 }
 fn print_syntax() {
     let syntax = r#"psudo syntax (compressed):
@@ -229,8 +232,7 @@ fn run_repl(config: &Config) {
     }
 }
 
-
- fn run_source(source: &str, config: &Config) {
+fn run_source(source: &str, config: &Config) {
     // Initialize sandbox
     if let Err(e) = init_sandbox(None) {
         eprintln!("Failed to initialize sandbox: {}", e);
@@ -269,15 +271,21 @@ fn run_repl(config: &Config) {
             }
             let mut interpreter = match config.check_borrows {
                 true => InterpreterMode::Checked(CheckedInterpret {
-                    environment: Rc::new(RefCell::new(CheckedEnvironment::new(Rc::new(RefCell::new(BorrowChecker::new()))))),
+                    environment: Rc::new(RefCell::new(CheckedEnvironment::new(Rc::new(
+                        RefCell::new(BorrowChecker::new()),
+                    )))),
                     check_borrows: true,
                 }),
                 false => InterpreterMode::Normal(Interpret::default()),
             };
             for stmt in statements {
                 match &mut interpreter {
-                    InterpreterMode::Checked(ci) => { ci.execute(&stmt); }
-                    InterpreterMode::Normal(ni) => { ni.execute(&stmt); }
+                    InterpreterMode::Checked(ci) => {
+                        ci.execute(&stmt);
+                    }
+                    InterpreterMode::Normal(ni) => {
+                        ni.execute(&stmt);
+                    }
                 }
             }
         }
@@ -287,8 +295,3 @@ fn run_repl(config: &Config) {
         }
     }
 }
-
-
-
-
-

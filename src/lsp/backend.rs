@@ -1,11 +1,11 @@
 // Backend implementation for the LSP server
 
-use tower_lsp::{Client, LanguageServer};
-use tower_lsp::jsonrpc::Result;
-use tower_lsp::lsp_types::*;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use std::collections::HashMap;
+use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::*;
+use tower_lsp::{Client, LanguageServer};
 
 use crate::lexer::Lexer;
 use crate::parser::Parser;
@@ -37,7 +37,7 @@ impl Backend {
     }
 
     /// Lex and parse a document, storing tokens and errors
-    async fn analyze_document(&self, uri: &str, text: &str) -> (Vec<Token>, Vec<String>) {
+    async fn analyze_document(&self, _uri: &str, text: &str) -> (Vec<Token>, Vec<String>) {
         let mut lexer = Lexer::new(text.to_string());
         let tokens = match lexer.scan_tokens() {
             Ok(tokens) => tokens,
@@ -48,7 +48,7 @@ impl Backend {
 
         let mut parser = Parser::new(tokens.clone());
         let parse_result = parser.parse();
-        
+
         let mut parse_errors = Vec::new();
         if let Err(e) = parse_result {
             parse_errors.push(format!("Parser error: {}", e));
@@ -60,7 +60,7 @@ impl Backend {
     /// Update document and trigger diagnostics
     pub async fn update_document(&self, uri: String, version: i32, text: String) {
         let (tokens, parse_errors) = self.analyze_document(&uri, &text).await;
-        
+
         let doc = Document {
             uri: uri.clone(),
             version,
@@ -68,7 +68,7 @@ impl Backend {
             tokens,
             parse_errors,
         };
-        
+
         self.documents.lock().await.insert(uri.clone(), doc);
         self.check_diagnostics(&uri).await;
     }
@@ -91,8 +91,14 @@ impl Backend {
         for error in &doc.parse_errors {
             diagnostics.push(Diagnostic {
                 range: Range {
-                    start: Position { line: 0, character: 0 },
-                    end: Position { line: 0, character: 0 },
+                    start: Position {
+                        line: 0,
+                        character: 0,
+                    },
+                    end: Position {
+                        line: 0,
+                        character: 0,
+                    },
                 },
                 severity: Some(DiagnosticSeverity::ERROR),
                 message: error.clone(),
@@ -106,12 +112,19 @@ impl Backend {
         let client_guard = self.client.lock().await;
         if let Some(client) = client_guard.as_ref() {
             let url = Url::parse(uri).unwrap_or_else(|_| Url::parse("file:///").unwrap());
-            client.publish_diagnostics(url, diagnostics, Some(doc.version)).await;
+            client
+                .publish_diagnostics(url, diagnostics, Some(doc.version))
+                .await;
         }
     }
 
     /// Find token at position
-    fn token_at_position<'a>(&self, tokens: &'a [Token], line: u32, character: u32) -> Option<&'a Token> {
+    fn token_at_position<'a>(
+        &self,
+        tokens: &'a [Token],
+        line: u32,
+        character: u32,
+    ) -> Option<&'a Token> {
         // LSP uses 0-indexed positions, lexer uses 1-indexed
         let lsp_line = line + 1;
         let lsp_char = character + 1;
@@ -119,7 +132,7 @@ impl Backend {
             let token_line = token.span.start_line as u32;
             let token_start = token.span.start_col as u32;
             let token_end = token.span.end_col as u32;
-            
+
             if token_line == lsp_line && lsp_char >= token_start && lsp_char <= token_end {
                 return Some(token);
             }
@@ -151,26 +164,28 @@ impl LanguageServer for Backend {
                         inter_file_dependencies: false,
                         workspace_diagnostics: false,
                         ..Default::default()
-                    }
+                    },
                 )),
-                semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
-                    SemanticTokensOptions {
-                        legend: SemanticTokensLegend {
-                            token_types: vec![
-                                SemanticTokenType::KEYWORD,
-                                SemanticTokenType::VARIABLE,
-                                SemanticTokenType::FUNCTION,
-                                SemanticTokenType::NUMBER,
-                                SemanticTokenType::STRING,
-                                SemanticTokenType::OPERATOR,
-                            ],
-                            token_modifiers: vec![],
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: vec![
+                                    SemanticTokenType::KEYWORD,
+                                    SemanticTokenType::VARIABLE,
+                                    SemanticTokenType::FUNCTION,
+                                    SemanticTokenType::NUMBER,
+                                    SemanticTokenType::STRING,
+                                    SemanticTokenType::OPERATOR,
+                                ],
+                                token_modifiers: vec![],
+                            },
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            range: Some(false),
+                            ..Default::default()
                         },
-                        full: Some(SemanticTokensFullOptions::Bool(true)),
-                        range: Some(false),
-                        ..Default::default()
-                    }
-                )),
+                    ),
+                ),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -190,19 +205,21 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
-        self.update_document(uri, params.text_document.version, params.text_document.text).await;
+        self.update_document(uri, params.text_document.version, params.text_document.text)
+            .await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
         let version = params.text_document.version;
-        
+
         // For FULL sync, we take the last change as the full document
-        let text = params.content_changes
+        let text = params
+            .content_changes
             .last()
             .map(|c| c.text.clone())
             .unwrap_or_default();
-        
+
         self.update_document(uri, version, text).await;
     }
 
@@ -212,9 +229,13 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        let uri = params.text_document_position_params.text_document.uri.to_string();
+        let uri = params
+            .text_document_position_params
+            .text_document
+            .uri
+            .to_string();
         let position = params.text_document_position_params.position;
-        
+
         let doc = match self.get_document(&uri).await {
             Some(doc) => doc,
             None => return Ok(None),
@@ -228,7 +249,10 @@ impl LanguageServer for Backend {
         // Generate hover content based on token type
         let content = match &token.token_type {
             TokenType::IDENTIFIER => {
-                format!("**Variable**: `{}`\n\nType: inferred from assignment", token.text)
+                format!(
+                    "**Variable**: `{}`\n\nType: inferred from assignment",
+                    token.text
+                )
             }
             TokenType::NUMBER => {
                 format!("**Number literal**: `{}`", token.text)
@@ -240,7 +264,9 @@ impl LanguageServer for Backend {
             TokenType::IF => "Keyword: `if` - conditional branch".to_string(),
             TokenType::ELSE => "Keyword: `else` - alternative branch".to_string(),
             TokenType::WHILE => "Keyword: `while` - loop while condition is true".to_string(),
-            TokenType::FOR => "Keyword: `for` - loop with initializer, condition, increment".to_string(),
+            TokenType::FOR => {
+                "Keyword: `for` - loop with initializer, condition, increment".to_string()
+            }
             TokenType::PRINT => "Keyword: `print` - output expression to console".to_string(),
             TokenType::TRUE => "Keyword: `true` - boolean true".to_string(),
             TokenType::FALSE => "Keyword: `false` - boolean false".to_string(),
@@ -281,8 +307,8 @@ impl LanguageServer for Backend {
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = params.text_document_position.text_document.uri.to_string();
-        let position = params.text_document_position.position;
-        
+        let _position = params.text_document_position.position;
+
         let doc = match self.get_document(&uri).await {
             Some(doc) => doc,
             None => return Ok(None),
@@ -333,7 +359,10 @@ impl LanguageServer for Backend {
         Ok(Some(CompletionResponse::Array(items)))
     }
 
-    async fn semantic_tokens_full(&self, params: SemanticTokensParams) -> Result<Option<SemanticTokensResult>> {
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri.to_string();
         let mut tokens_data = Vec::new();
         let mut prev_line = 0u32;
@@ -350,13 +379,40 @@ impl LanguageServer for Backend {
                     TokenType::NUMBER => 0,
                     TokenType::STRING => 1,
                     TokenType::IDENTIFIER => 2,
-                    TokenType::LET | TokenType::FN | TokenType::IF | TokenType::ELSE | TokenType::WHILE | TokenType::FOR | TokenType::PRINT | TokenType::RETURN | TokenType::TRUE | TokenType::FALSE | TokenType::NIL => 3,
-                    TokenType::PLUS | TokenType::MINUS | TokenType::STAR | TokenType::SLASH | TokenType::EQUAL | TokenType::BangEqual | TokenType::EqualEqual | TokenType::GREATER | TokenType::GreaterEqual | TokenType::LESS | TokenType::LessEqual | TokenType::BANG | TokenType::AND | TokenType::OR => 4,
+                    TokenType::LET
+                    | TokenType::FN
+                    | TokenType::IF
+                    | TokenType::ELSE
+                    | TokenType::WHILE
+                    | TokenType::FOR
+                    | TokenType::PRINT
+                    | TokenType::RETURN
+                    | TokenType::TRUE
+                    | TokenType::FALSE
+                    | TokenType::NIL => 3,
+                    TokenType::PLUS
+                    | TokenType::MINUS
+                    | TokenType::STAR
+                    | TokenType::SLASH
+                    | TokenType::EQUAL
+                    | TokenType::BangEqual
+                    | TokenType::EqualEqual
+                    | TokenType::GREATER
+                    | TokenType::GreaterEqual
+                    | TokenType::LESS
+                    | TokenType::LessEqual
+                    | TokenType::BANG
+                    | TokenType::AND
+                    | TokenType::OR => 4,
                     _ => 5,
                 };
 
                 let delta_line = line - prev_line;
-                let delta_start = if delta_line == 0 { start_char - prev_char } else { start_char };
+                let delta_start = if delta_line == 0 {
+                    start_char - prev_char
+                } else {
+                    start_char
+                };
 
                 tokens_data.push(SemanticToken {
                     delta_line,

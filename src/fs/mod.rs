@@ -1,5 +1,5 @@
 pub mod sandbox;
 
 pub use sandbox::{
-    init_sandbox, read_file, write_file, list_dir, exists, is_file, is_dir, mkdir, FSError,
+    exists, init_sandbox, is_dir, is_file, list_dir, mkdir, read_file, write_file, FSError,
 };

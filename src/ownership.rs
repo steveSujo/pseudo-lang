@@ -4,19 +4,19 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
- use std::rc::Rc;
- 
- use crate::parser::DataTypes;
- 
+use std::rc::Rc;
+
+use crate::parser::DataTypes;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Lifetime(pub usize);
 
- impl Lifetime {
-     pub fn new() -> Self {
-         static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
-         Lifetime(COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
-     }
- }
+impl Lifetime {
+    pub fn new() -> Self {
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+        Lifetime(COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
 
 impl Default for Lifetime {
     fn default() -> Self {
@@ -25,8 +25,10 @@ impl Default for Lifetime {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum Ownership {
     /// Fully owned value - can be moved, dropped, or borrowed
+    #[default]
     Owned,
     /// Immutable borrow - read-only access, multiple allowed
     Borrowed(Lifetime),
@@ -36,11 +38,6 @@ pub enum Ownership {
     Static,
 }
 
-impl Default for Ownership {
-    fn default() -> Self {
-        Ownership::Owned
-    }
-}
 
 impl Ownership {
     pub fn is_owned(&self) -> bool {
@@ -116,7 +113,7 @@ impl<T> OwnedValue<T> {
                     lifetime: lt,
                     mutable: false,
                 })
-            },
+            }
         }
     }
 
@@ -273,7 +270,12 @@ impl BorrowChecker {
         }
     }
 
-    pub fn borrow(&mut self, var: &str, mutable: bool, location: String) -> Result<Lifetime, BorrowError> {
+    pub fn borrow(
+        &mut self,
+        var: &str,
+        mutable: bool,
+        location: String,
+    ) -> Result<Lifetime, BorrowError> {
         let lt = Lifetime(self.next_lifetime);
         self.next_lifetime += 1;
 
@@ -284,13 +286,21 @@ impl BorrowChecker {
             if !loans.is_empty() {
                 return Err(BorrowError::AlreadyBorrowed);
             }
-            loans.push(Loan { lifetime: lt, mutable: true, location });
+            loans.push(Loan {
+                lifetime: lt,
+                mutable: true,
+                location,
+            });
         } else {
             // Immutable borrow: no mutable loans allowed
             if loans.iter().any(|l| l.mutable) {
                 return Err(BorrowError::AlreadyMutBorrowed);
             }
-            loans.push(Loan { lifetime: lt, mutable: false, location });
+            loans.push(Loan {
+                lifetime: lt,
+                mutable: false,
+                location,
+            });
         }
 
         Ok(lt)
@@ -305,7 +315,7 @@ impl BorrowChecker {
         }
     }
 
-    pub fn move_var(&mut self, var: &str, location: String) -> Result<(), MoveError> {
+    pub fn move_var(&mut self, var: &str, _location: String) -> Result<(), MoveError> {
         // Check if borrowed
         if let Some(loans) = self.loans.get(var) {
             if !loans.is_empty() {
@@ -318,12 +328,13 @@ impl BorrowChecker {
             return Err(MoveError::UseAfterMove);
         }
 
-        self.moved.insert(var.to_string(), Lifetime(self.next_lifetime));
+        self.moved
+            .insert(var.to_string(), Lifetime(self.next_lifetime));
         self.next_lifetime += 1;
         Ok(())
     }
 
-    pub fn use_var(&mut self, var: &str, location: String) -> Result<(), MoveError> {
+    pub fn use_var(&mut self, var: &str, _location: String) -> Result<(), MoveError> {
         if self.moved.contains_key(var) {
             return Err(MoveError::UseAfterMove);
         }
@@ -416,8 +427,15 @@ impl CheckedEnvironment {
         self.borrow_checker.borrow_mut().use_var(name, location)
     }
 
-    pub fn borrow(&mut self, name: &str, mutable: bool, location: String) -> Result<Lifetime, BorrowError> {
-        self.borrow_checker.borrow_mut().borrow(name, mutable, location)
+    pub fn borrow(
+        &mut self,
+        name: &str,
+        mutable: bool,
+        location: String,
+    ) -> Result<Lifetime, BorrowError> {
+        self.borrow_checker
+            .borrow_mut()
+            .borrow(name, mutable, location)
     }
 
     pub fn release_borrow(&mut self, name: &str, lt: Lifetime) {

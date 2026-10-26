@@ -303,10 +303,7 @@ impl Default for Interpret {
                  drop(env);
                  let mut last_val = None;
                  for stmt in statements {
-                     match self.execute_with_borrows(stmt) {
-                         Some(v) => last_val = Some(v),
-                         None => (),
-                     }
+                     if let Some(v) = self.execute_with_borrows(stmt) { last_val = Some(v) }
                  }
                  let mut env = self.environment.borrow_mut();
                  env.pop_scope();
@@ -423,7 +420,7 @@ impl Default for Interpret {
      fn visit_call(&mut self, name: &str, args: &[Expression]) -> DataTypes {
          let arg_vals: Vec<DataTypes> = args.iter().map(|a| self.visit_expr(a)).collect();
  
-         let mut env = self.environment.borrow_mut();
+         let env = self.environment.borrow_mut();
          if let Some(func) = env.get(name) {
              match func {
                  DataTypes::Function { params, body, capture } => {
@@ -445,7 +442,7 @@ impl Default for Interpret {
                     // Copy vars from captured environment
                     interp.environment.borrow_mut().vars = capture.borrow().vars.clone();
                     interp.environment.borrow_mut().vars.extend(new_env.vars.clone());
-                    interp.execute_with_borrows(&*body).unwrap_or(DataTypes::Number(0.0))
+                    interp.execute_with_borrows(&body).unwrap_or(DataTypes::Number(0.0))
                  }
                  _ => {
                      eprintln!("'{name}' is not a function");
@@ -672,7 +669,6 @@ impl ExpressionVisitor<DataTypes> for Interpret {
                         Ok(v) => format!("Ok({})", v),
                         Err(e) => format!("Err({})", e),
                     },
-                    _ => "unknown".to_string(),
                 };
                 match crate::fs::write_file(&path, &content) {
                     Ok(_) => DataTypes::Number(0.0), // nil equivalent
@@ -1031,13 +1027,10 @@ impl Interpret {
             Statment::BlockStatement(statements) => {
                 let mut last_val = None;
                 for stmt in statements {
-                    match self.execute(stmt) {
-                        Some(v) => {
-                            // Check if it's a return from inside
-                            // For now, just capture the last expression value
-                            last_val = Some(v);
-                        }
-                        None => {}
+                    if let Some(v) = self.execute(stmt) {
+                        // Check if it's a return from inside
+                        // For now, just capture the last expression value
+                        last_val = Some(v);
                     }
                 }
                 last_val
@@ -1109,7 +1102,7 @@ impl ExpressionVisitor<String> for PrettyPrint {
         format!("(get {} {})", self.visit_expr(object.clone()), name)
     }
 
-    fn visit_function(&mut self, params: &[String], body: &Statment) -> String {
+    fn visit_function(&mut self, params: &[String], _body: &Statment) -> String {
         format!("(fn {} ...)", params.join(", "))
     }
 
@@ -1134,7 +1127,7 @@ impl PrettyPrint {
             Expression::Index(object, index) => self.visit_index(&object, &index),
             Expression::Object(fields) => self.visit_object(&fields),
             Expression::Get(object, name) => self.visit_get(&object, &name),
-            Expression::Function(params, body) => self.visit_function(&params, &*body),
+            Expression::Function(params, body) => self.visit_function(&params, &body),
             Expression::Return(value) => self.visit_return(&value),
         }
     }
@@ -1165,7 +1158,7 @@ impl Parser {
         while self.tokens.peek().is_some_and(|t| t.token_type != TokenType::EOF) {
             statements.push(self.statement()?);
         }
-        return Ok(statements);
+        Ok(statements)
     }
 
     fn statement(&mut self) -> Result<Statment, Errors> {
@@ -1258,7 +1251,7 @@ impl Parser {
         }
         let exp = self.expression()?;
         self.consume(TokenType::SEMICOLON, "Expect ';' after expression")?;
-        return Ok(Statment::ExpressionStatement(exp));
+        Ok(Statment::ExpressionStatement(exp))
     }
 
     fn block(&mut self) -> Result<Vec<Statment>, Errors> {
@@ -1286,7 +1279,7 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, Errors> {
-        return Ok(self.assignment()?);
+        self.assignment()
     }
 
     fn assignment(&mut self) -> Result<Expression, Errors> {
@@ -1313,7 +1306,7 @@ impl Parser {
             let expr_right = self.comp()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return Ok(exp);
+        Ok(exp)
     }
 
     fn comp(&mut self) -> Result<Expression, Errors> {
@@ -1331,7 +1324,7 @@ impl Parser {
             let expr_right = self.term()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return Ok(exp);
+        Ok(exp)
     }
 
     fn term(&mut self) -> Result<Expression, Errors> {
@@ -1344,7 +1337,7 @@ impl Parser {
             let expr_right = self.factor()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return Ok(exp);
+        Ok(exp)
     }
 
     fn factor(&mut self) -> Result<Expression, Errors> {
@@ -1357,7 +1350,7 @@ impl Parser {
             let expr_right = self.unary()?;
             exp = Expression::Binary(Box::new(exp), token, Box::new(expr_right))
         }
-        return Ok(exp);
+        Ok(exp)
     }
 
     fn unary(&mut self) -> Result<Expression, Errors> {
@@ -1369,7 +1362,7 @@ impl Parser {
             return Ok(Expression::Unary(operator, Box::new(exp_right)));
         }
 
-        return Ok(self.primary()?);
+        self.primary()
     }
 
     fn primary(&mut self) -> Result<Expression, Errors> {
@@ -1447,7 +1440,7 @@ impl Parser {
                 _ => return Err(Errors::NonPrimaryToken),
             }
         }
-        return Err(Errors::NonPrimaryToken);
+        Err(Errors::NonPrimaryToken)
     }
 
     fn array_literal(&mut self) -> Result<Expression, Errors> {

@@ -1,13 +1,12 @@
 use psudo::lsp::Backend;
-use tower_lsp::{LanguageServer, LspService};
-use tower_lsp::lsp_types::*;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tower_lsp::lsp_types::*;
+use tower_lsp::{LanguageServer, LspService};
 
 /// Helper to create a test backend using LspService builder
 async fn create_test_backend() -> Arc<Backend> {
     // Use LspService::build to create a client properly
-    let (service, _socket) = LspService::build(|client| Backend::new(client)).finish();
+    let (service, _socket) = LspService::build(Backend::new).finish();
     // Get the inner backend from the service
     let backend = service.inner().clone();
     Arc::new(backend)
@@ -15,10 +14,10 @@ async fn create_test_backend() -> Arc<Backend> {
 #[tokio::test]
 async fn test_initialize() {
     let backend = create_test_backend().await;
-    
+
     let params = InitializeParams::default();
     let result = backend.initialize(params).await;
-    
+
     assert!(result.is_ok());
     let init_result = result.unwrap();
     assert!(init_result.capabilities.text_document_sync.is_some());
@@ -30,7 +29,7 @@ async fn test_initialize() {
 #[tokio::test]
 async fn test_did_open() {
     let backend = create_test_backend().await;
-    
+
     let params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -39,9 +38,9 @@ async fn test_did_open() {
             text: "let x = 10;\nprint x;".to_string(),
         },
     };
-    
+
     backend.did_open(params).await;
-    
+
     // Verify document was stored
     let docs = backend.documents.lock().await;
     assert!(docs.contains_key("file:///test.psudo"));
@@ -51,7 +50,7 @@ async fn test_did_open() {
 #[tokio::test]
 async fn test_did_change() {
     let backend = create_test_backend().await;
-    
+
     // First open a document
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
@@ -62,7 +61,7 @@ async fn test_did_change() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     // Then change it
     let change_params = DidChangeTextDocumentParams {
         text_document: VersionedTextDocumentIdentifier {
@@ -76,7 +75,7 @@ async fn test_did_change() {
         }],
     };
     backend.did_change(change_params).await;
-    
+
     // Verify document was updated
     let docs = backend.documents.lock().await;
     let doc = docs.get("file:///test.psudo").unwrap();
@@ -88,7 +87,7 @@ async fn test_did_change() {
 #[tokio::test]
 async fn test_hover_variable() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -98,18 +97,21 @@ async fn test_hover_variable() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     // Hover over 'x' at position (0, 4) - "let x = 42;"
     let hover_params = HoverParams {
         text_document_position_params: TextDocumentPositionParams {
             text_document: TextDocumentIdentifier {
                 uri: Url::parse("file:///test.psudo").unwrap(),
             },
-            position: Position { line: 0, character: 4 },
+            position: Position {
+                line: 0,
+                character: 4,
+            },
         },
         work_done_progress_params: WorkDoneProgressParams::default(),
     };
-    
+
     let result = backend.hover(hover_params).await;
     assert!(result.is_ok());
     let hover = result.unwrap();
@@ -127,7 +129,7 @@ async fn test_hover_variable() {
 #[tokio::test]
 async fn test_hover_keyword() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -137,18 +139,21 @@ async fn test_hover_keyword() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     // Hover over 'if' at position (0, 0)
     let hover_params = HoverParams {
         text_document_position_params: TextDocumentPositionParams {
             text_document: TextDocumentIdentifier {
                 uri: Url::parse("file:///test.psudo").unwrap(),
             },
-            position: Position { line: 0, character: 0 },
+            position: Position {
+                line: 0,
+                character: 0,
+            },
         },
         work_done_progress_params: WorkDoneProgressParams::default(),
     };
-    
+
     let result = backend.hover(hover_params).await;
     assert!(result.is_ok());
 }
@@ -157,7 +162,7 @@ async fn test_hover_keyword() {
 #[tokio::test]
 async fn test_completion() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -167,19 +172,22 @@ async fn test_completion() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     let completion_params = CompletionParams {
         text_document_position: TextDocumentPositionParams {
             text_document: TextDocumentIdentifier {
                 uri: Url::parse("file:///test.psudo").unwrap(),
             },
-            position: Position { line: 1, character: 4 }, // after "prin"
+            position: Position {
+                line: 1,
+                character: 4,
+            }, // after "prin"
         },
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
         context: None,
     };
-    
+
     let result = backend.completion(completion_params).await;
     assert!(result.is_ok());
     let completion = result.unwrap();
@@ -196,7 +204,7 @@ async fn test_completion() {
 #[tokio::test]
 async fn test_diagnostics_syntax_error() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -206,10 +214,10 @@ async fn test_diagnostics_syntax_error() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     // Trigger diagnostic check
     backend.check_diagnostics("file:///test.psudo").await;
-    
+
     // The test verifies no panic occurs and diagnostics are computed
     // Full client integration test would need a mock client
 }
@@ -218,7 +226,7 @@ async fn test_diagnostics_syntax_error() {
 #[tokio::test]
 async fn test_diagnostics_undefined_variable() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -228,7 +236,7 @@ async fn test_diagnostics_undefined_variable() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     backend.check_diagnostics("file:///test.psudo").await;
 }
 
@@ -236,7 +244,7 @@ async fn test_diagnostics_undefined_variable() {
 #[tokio::test]
 async fn test_semantic_tokens() {
     let backend = create_test_backend().await;
-    
+
     let open_params = DidOpenTextDocumentParams {
         text_document: TextDocumentItem {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -246,7 +254,7 @@ async fn test_semantic_tokens() {
         },
     };
     backend.did_open(open_params).await;
-    
+
     let params = SemanticTokensParams {
         text_document: TextDocumentIdentifier {
             uri: Url::parse("file:///test.psudo").unwrap(),
@@ -254,7 +262,7 @@ async fn test_semantic_tokens() {
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
     };
-    
+
     let result = backend.semantic_tokens_full(params).await;
     // May not be implemented yet - just verify no panic
     assert!(result.is_ok() || result.is_err());

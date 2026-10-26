@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::{
     error_handler::Errors,
-    tokens::{LiteralType, Token, TokenType, Span},
+    tokens::{LiteralType, Span, Token, TokenType},
 };
 
 pub struct Lexer {
@@ -52,7 +52,6 @@ impl Lexer {
             Ok(self.token_list.clone())
         }
     }
-
 
     pub fn get_tokens(&self) -> Vec<Token> {
         self.token_list.clone()
@@ -132,7 +131,7 @@ impl Lexer {
             '\r' => {}
             '\t' => {}
             '"' => self.string()?,
-            char if char.is_digit(10) => self.number()?,
+            char if char.is_ascii_digit() => self.number()?,
             char if char.is_alphabetic() || char == '_' => self.identifier(),
             _char => {
                 //error unexpeted char
@@ -172,15 +171,15 @@ impl Lexer {
             .nth(self.current)
             .is_some_and(|char| char != pattern)
         {
-            return false;
+            false
         } else {
             self.current += 1;
-            return true;
+            true
         }
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        return self.add_token_with_literal(token_type, None);
+        self.add_token_with_literal(token_type, None)
     }
 
     fn add_token_with_literal(&mut self, token_type: TokenType, literal: Option<LiteralType>) {
@@ -276,7 +275,10 @@ impl Lexer {
     }
 
     fn identifier(&mut self) {
-        while self.peek().is_some_and(|char| char.is_alphanumeric() || char == '_') {
+        while self
+            .peek()
+            .is_some_and(|char| char.is_alphanumeric() || char == '_')
+        {
             self.advance();
         }
         let text = &self.source[self.start..self.current];
