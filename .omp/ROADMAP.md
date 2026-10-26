@@ -1,6 +1,12 @@
 # psudo Roadmap: Interpreted → Compiled
 
-## Vision
+## Current Version: **0.2.0** (Phase 1 Complete)
+
+### Version History
+| Version | Date | Phase | Key Features |
+|---------|------|-------|--------------|
+| 0.1.0 | 2024-10-23 | 0 | Lexer, Parser, Basic Interpreter |
+| 0.2.0 | 2024-10-24 | 1 | Lean 4 Verification, Sandbox FS, LSP, Config, **Borrow Checker** |
 
 Build a dual-mode language: **interpreted first** (rapid iteration, memory safety validation), **compiled second** (safe native artifacts). The interpreter acts as a "borrow checker simulator" — ironing out ownership/memory issues before code reaches the compiler backend.
 

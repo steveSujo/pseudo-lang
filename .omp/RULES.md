@@ -47,6 +47,14 @@ todo(op="init", list=[
 - Milestone commits should summarize the completed work in the message body
 - Reference related todos/issues in commit body
 
+### Version Bumping
+- **After each milestone commit**, bump version in `Cargo.toml`:
+  - Phase completion: minor version (0.x.0 → 0.(x+1).0)
+  - Patch fixes: patch version (0.x.y → 0.x.(y+1))
+  - Major breaking changes: major version (x.0.0 → (x+1).0.0)
+- Update version in `Cargo.toml` and `README.md` if present
+- Tag the commit: `git tag v<version>`
+
 ### Testing
 - All new features need tests
 - Run full test suite before push
