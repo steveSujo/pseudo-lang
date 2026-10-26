@@ -4,6 +4,8 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
+use crate::config::{ProjectConfig, load_project_config, resolve_sandbox_root};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FSError {
     NotInSandbox,
@@ -28,16 +30,46 @@ impl std::fmt::Display for FSError {
 }
 
 impl std::error::Error for FSError {}
+static CONFIG: LazyLock<Mutex<Option<ProjectConfig>>> = LazyLock::new(|| Mutex::new(None));
 
-const MAX_FILE_SIZE: u64 = 1_048_576; // 1MB
-const MAX_SANDBOX_SIZE: u64 = 10_485_760; // 10MB
+/// Initialize sandbox with project config
+pub fn init_sandbox_with_config(config: ProjectConfig) -> Result<(), FSError> {
+    let mut guard = CONFIG.lock().map_err(|_| FSError::IOError("Lock poisoned".to_string()))?;
+    if guard.is_some() {
+        return Err(FSError::IOError("Sandbox already initialized".to_string()));
+    }
+    *guard = Some(config);
+    init_sandbox(None)
+}
+
+fn get_config() -> ProjectConfig {
+    CONFIG.lock()
+        .ok()
+        .and_then(|g| g.clone())
+        .unwrap_or_else(load_project_config)
+}
+
+/// Get config from static or load from project
+fn config() -> ProjectConfig {
+    get_config()
+}
+
+/// Get max file size from config
+fn max_file_size() -> u64 {
+    config().sandbox.max_file_size
+}
+
+fn max_sandbox_size() -> u64 {
+    config().sandbox.max_sandbox_size
+}
 
 static SANDBOX_ROOT: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 
 /// Initialize the sandbox root directory.
 /// Must be called before any filesystem operations.
 pub fn init_sandbox(root: Option<PathBuf>) -> Result<(), FSError> {
-    let root = root.unwrap_or_else(|| PathBuf::from("./sandbox"));
+    let config = config();
+    let root = root.unwrap_or_else(|| resolve_sandbox_root(&config));
 
     let canonical = match root.canonicalize() {
         Ok(c) => c,
@@ -63,6 +95,7 @@ pub fn init_sandbox(root: Option<PathBuf>) -> Result<(), FSError> {
 
     Ok(())
 }
+
 
 /// Get the sandbox root path.
 fn sandbox_root() -> Result<PathBuf, FSError> {
@@ -129,20 +162,20 @@ fn sandbox_size(root: &Path) -> Result<u64, FSError> {
 /// Check sandbox size limit.
 fn check_sandbox_size(root: &Path) -> Result<(), FSError> {
     let size = sandbox_size(root)?;
-    if size > MAX_SANDBOX_SIZE {
+    if size > max_sandbox_size() {
         return Err(FSError::TooLarge);
     }
     Ok(())
 }
+ /// Check file size limit.
+ fn check_file_size(path: &Path) -> Result<(), FSError> {
+     let metadata = fs::metadata(path).map_err(|e| FSError::IOError(e.to_string()))?;
+    if metadata.len() > max_file_size() {
+         return Err(FSError::TooLarge);
+     }
+     Ok(())
+ }
 
-/// Check file size limit.
-fn check_file_size(path: &Path) -> Result<(), FSError> {
-    let metadata = fs::metadata(path).map_err(|e| FSError::IOError(e.to_string()))?;
-    if metadata.len() > MAX_FILE_SIZE {
-        return Err(FSError::TooLarge);
-    }
-    Ok(())
-}
 
 /// Read a file from the sandbox.
 pub fn read_file(path: &str) -> Result<String, FSError> {
@@ -156,9 +189,9 @@ pub fn write_file(path: &str, content: &str) -> Result<(), FSError> {
     let resolved = resolve_path(path)?;
 
     // Check content size before writing
-    if content.len() as u64 > MAX_FILE_SIZE {
-        return Err(FSError::TooLarge);
-    }
+    if content.len() as u64 > max_file_size() {
+         return Err(FSError::TooLarge);
+     }
 
     // Ensure parent directory exists
     if let Some(parent) = resolved.parent() {
@@ -306,7 +339,7 @@ mod tests {
     fn test_file_size_limit() {
         let _sandbox = init_test_sandbox();
 
-        let large = "x".repeat(MAX_FILE_SIZE as usize + 1);
+        let large = "x".repeat(max_file_size() as usize + 1);
         assert!(write_file("large.txt", &large).is_err());
     }
 }
