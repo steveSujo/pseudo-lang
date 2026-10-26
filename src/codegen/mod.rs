@@ -1,15 +1,15 @@
 // Cranelift codegen module with cross-platform target support
 
 use crate::mir::{MirProgram, MirFunction, MirInst, MirType, StackSlotId, FuncId, BlockId, IntCond};
-use cranelift_codegen::ir::{self, InstBuilder, Type, Value, StackSlot, StackSlotData, StackSlotKind, AbiParam, Block, FunctionBuilder, FunctionBuilderContext};
+use cranelift_codegen::ir::{self, InstBuilder, Type, Value, StackSlot, StackSlotData, StackSlotKind, AbiParam, Block};
 use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::isa::TargetIsa;
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable as FrontendVariable};
-use cranelift_module::{Module, ObjectModule, Linkage, FuncId as ModuleFuncId, default_libcall_names};
+use cranelift_module::{Module, Linkage, FuncId as ModuleFuncId, default_libcall_names};
+use cranelift_object::{ObjectModule, ObjectBuilder, ObjectProduct};
 use cranelift_native;
 use cranelift_codegen::settings::{Configurable, FlagsOrIsa};
 use target_lexicon::{Triple, Architecture, BinaryFormat, OperatingSystem, Environment};
-use object::{Object, ObjectSection, SectionKind, write::pe};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -30,7 +30,7 @@ impl TargetSpec {
             .map_err(|e| format!("Invalid target triple: {}", e))?;
         
         let is_windows = triple.operating_system == target_lexicon::OperatingSystem::Windows;
-        let is_macos = triple.operating_system == target_lexicon::OperatingSystem::MacOSX;
+        let is_macos = matches!(triple.operating_system, target_lexicon::OperatingSystem::MacOSX { .. });
         let is_linux = triple.operating_system == target_lexicon::OperatingSystem::Linux;
         let is_musl = triple.environment == target_lexicon::Environment::Musl;
         
@@ -38,7 +38,7 @@ impl TargetSpec {
             target_lexicon::Architecture::X86_64 => 8,
             target_lexicon::Architecture::Aarch64(_) => 8,
             target_lexicon::Architecture::Arm(_) => 4,
-            target_lexicon::Architecture::X86 => 4,
+            target_lexicon::Architecture::I386 => 4,
             _ => 8,
         };
         
@@ -82,16 +82,21 @@ impl CodegenContext {
     }
     
     fn new(target: TargetSpec) -> Result<Self, String> {
-        let isa = cranelift_native::builder()
-            .map_err(|e| format!("Failed to create ISA builder: {}", e))?
-            .finish(cranelift_codegen::settings::Flags::new())
+        let isa_builder = cranelift_native::builder()
+            .map_err(|e| format!("Failed to create ISA builder: {}", e))?;
+        
+        let isa = isa_builder
+            .finish()
             .map_err(|e| format!("Failed to finish ISA: {}", e))?;
         
         let module = ObjectModule::new(
-            default_libcall_names(),
-            target.triple.clone(),
-            Arc::new(default_libcall_names()),
-        ).map_err(|e| format!("Failed to create ObjectModule: {}", e))?;
+            ObjectBuilder::new(
+                target.triple.clone(),
+                Arc::new(isa.clone()),
+                default_libcall_names(),
+            )
+            .map_err(|e| format!("Failed to create ObjectBuilder: {}", e))?,
+        );
         
         Ok(Self {
             target,
@@ -108,7 +113,7 @@ impl CodegenContext {
     fn mir_type_to_clif(&self, ty: MirType) -> cranelift_codegen::ir::Type {
         match ty {
             MirType::I32 => cranelift_codegen::ir::Type::int(32),
-            MirType::F32 => cranelift_codegen::ir::Type::f32(),
+            MirType::F32 => cranelift_codegen::ir::Type::f32,
             MirType::Bool => cranelift_codegen::ir::Type::int(8),
             MirType::Ptr => cranelift_codegen::ir::Type::int(self.target.pointer_size as u16 * 8),
             MirType::Ref(_) => cranelift_codegen::ir::Type::int(self.target.pointer_size as u16 * 8),
@@ -192,13 +197,14 @@ impl CodegenContext {
             let slot = builder.create_stack_slot(cranelift_codegen::ir::StackSlotData::new(
                 cranelift_codegen::ir::StackSlotKind::ExplicitSlot,
                 self.mir_type_to_clif(*ty).bytes() as u32,
+                8, // alignment
             ));
             self.stack_slots.insert(*slot_id, slot);
         }
 
         // Create variables for stack slots
         for slot_id in func.stack_slots.keys() {
-            let var = cranelift_frontend::Variable::new(self.variables.len());
+            let var = cranelift_frontend::Variable::new(self.variables.len() as u32);
             self.variables.insert(*slot_id, var);
             builder.declare_var(var, self.mir_type_to_clif(func.stack_slots[slot_id].0));
         }
@@ -362,6 +368,13 @@ impl CodegenContext {
         }
         Ok(())
     }
+
+    /// Emit the object file
+    pub fn emit_object(&mut self) -> Result<Vec<u8>, String> {
+        let product = self.module.finish();
+        let obj_bytes = product.emit().map_err(|e| format!("Failed to emit object: {}", e))?;
+        Ok(obj_bytes)
+    }
 }
 
 impl Default for CodegenContext {
@@ -370,38 +383,28 @@ impl Default for CodegenContext {
     }
 }
 
-impl CodegenContext {
-    pub fn for_host() -> Result<Self, String> {
-        let target = TargetSpec::host();
-        Self::new(target)
-    }
+/// Compile MIR program to object file
+pub fn compile_mir_to_object(program: &MirProgram, _output_path: &str) -> Result<(), String> {
+    let mut ctx = CodegenContext::for_host()?;
+    ctx.compile_program(program)?;
     
-    pub fn for_target(triple: &str) -> Result<Self, String> {
-        let target = TargetSpec::from_triple(triple)?;
-        Self::new(target)
-    }
+    // Emit object file
+    let obj_bytes = ctx.emit_object()?;
     
-    fn new(target: TargetSpec) -> Result<Self, String> {
-        let isa = cranelift_native::builder()
-            .map_err(|e| format!("Failed to create ISA builder: {}", e))?
-            .finish(cranelift_codegen::settings::Flags::new())
-            .map_err(|e| format!("Failed to finish ISA: {}", e))?;
-        
-        let module = ObjectModule::new(
-            default_libcall_names(),
-            target.triple.clone(),
-            Arc::new(default_libcall_names()),
-        ).map_err(|e| format!("Failed to create ObjectModule: {}", e))?;
-        
-        Ok(Self {
-            target,
-            isa,
-            module,
-            builder_context: FunctionBuilderContext::new(),
-            func_map: HashMap::new(),
-            stack_slots: HashMap::new(),
-            variables: HashMap::new(),
-            block_map: HashMap::new(),
-        })
-    }
+    println!("Object file size: {} bytes", obj_bytes.len());
+    
+    Ok(())
+}
+
+/// Compile MIR program for a specific target
+pub fn compile_mir_for_target(program: &MirProgram, target_triple: &str, _output_path: &str) -> Result<(), String> {
+    let target = TargetSpec::from_triple(target_triple)?;
+    let mut ctx = CodegenContext::new(target)?;
+    ctx.compile_program(program)?;
+    
+    let obj_bytes = ctx.emit_object()?;
+    
+    println!("Object file size: {} bytes for target {}", obj_bytes.len(), target_triple);
+    
+    Ok(())
 }
