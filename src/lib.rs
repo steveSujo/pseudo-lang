@@ -4,6 +4,7 @@ pub mod parser;
  pub mod fs;
  pub mod config;
  pub mod lsp;
+ pub mod ownership;
 pub mod tokens {
     use std::fmt::{self, Display};
 
@@ -11,6 +12,8 @@ pub mod tokens {
     pub enum LiteralType {
         String(String),
         Number(f32),
+        Bool(bool),
+        Null,
     }
 
     impl LiteralType {
@@ -18,6 +21,8 @@ pub mod tokens {
             match self {
                 LiteralType::String(x) => x.to_string(),
                 LiteralType::Number(x) => x.to_string(),
+                LiteralType::Bool(b) => b.to_string(),
+                LiteralType::Null => "null".to_string(),
             }
         }
     }

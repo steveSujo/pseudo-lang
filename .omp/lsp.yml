@@ -1,0 +1,7 @@
+servers:
+  lean4-lsp:
+    command: "lean"
+    args: ["--server"]
+    fileTypes: [".lean"]
+    languageId: "lean"
+    rootMarkers: ["lean-toolchain", "lakefile.toml", "lakefile.lean"]

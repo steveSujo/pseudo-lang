@@ -4,17 +4,24 @@ use std::{
     io::{self, Write},
     path::PathBuf,
     process,
+    rc::Rc,
+    cell::RefCell,
 };
 use psudo::{
     fs::init_sandbox,
     lexer::Lexer,
-    parser::{Interpret, Parser},
+    parser::{Interpret, Parser, CheckedInterpret},
+    ownership::{CheckedEnvironment, BorrowChecker},
     lsp::start_server,
 };
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-const NAME: &str = env!("CARGO_PKG_NAME");
+enum InterpreterMode {
+    Normal(Interpret),
+    Checked(CheckedInterpret),
+}
 
+ const VERSION: &str = env!("CARGO_PKG_VERSION");
+const NAME: &str = env!("CARGO_PKG_NAME");
 #[derive(Default)]
 struct Config {
     is_interactive: bool,
@@ -24,10 +31,11 @@ struct Config {
     quiet: bool,
     run_lsp: bool,
     show_syntax: bool,
+    check_borrows: bool,
 }
 
 fn main() {
-    let mut config = Config::default();
+     let mut config = Config::default();
     let mut args: Vec<String> = env::args().collect();
 
     // Skip program name
@@ -63,7 +71,8 @@ fn main() {
             "-a" | "--ast" => config.show_ast = true,
             "-q" | "--quiet" => config.quiet = true,
             "-s" | "--syntax" => config.show_syntax = true,
-             "--lsp" => config.run_lsp = true,
+            "-b" | "--check-borrows" => config.check_borrows = true,
+            "--lsp" => config.run_lsp = true,
             arg if arg.starts_with('-') => {
                 eprintln!("Error: Unknown argument '{}'", arg);
                 print_help();
@@ -132,6 +141,7 @@ Options:
   -a, --ast          Show AST after parsing
   -q, --quiet        Suppress token/AST output, only show results
   -s, --syntax       Show compressed syntax reference for LLM context
+  -b, --check-borrows  Enable borrow checking (move/borrow validation)
       --lsp          Start Language Server Protocol server (stdin/stdout)
 
 Examples:
@@ -219,7 +229,8 @@ fn run_repl(config: &Config) {
     }
 }
 
-fn run_source(source: &str, config: &Config) {
+
+ fn run_source(source: &str, config: &Config) {
     // Initialize sandbox
     if let Err(e) = init_sandbox(None) {
         eprintln!("Failed to initialize sandbox: {}", e);
@@ -256,10 +267,18 @@ fn run_source(source: &str, config: &Config) {
                 }
                 println!();
             }
-
-            let mut interpreter = Interpret::default();
+            let mut interpreter = match config.check_borrows {
+                true => InterpreterMode::Checked(CheckedInterpret {
+                    environment: Rc::new(RefCell::new(CheckedEnvironment::new(Rc::new(RefCell::new(BorrowChecker::new()))))),
+                    check_borrows: true,
+                }),
+                false => InterpreterMode::Normal(Interpret::default()),
+            };
             for stmt in statements {
-                interpreter.execute(&stmt);
+                match &mut interpreter {
+                    InterpreterMode::Checked(ci) => { ci.execute(&stmt); }
+                    InterpreterMode::Normal(ni) => { ni.execute(&stmt); }
+                }
             }
         }
         Err(err) => {

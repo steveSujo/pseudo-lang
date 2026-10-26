@@ -1,9 +1,10 @@
 use std::{fmt::Display, iter::Peekable, vec::IntoIter, rc::Rc, cell::RefCell};
 
-use crate::{
-    error_handler::Errors,
-    tokens::{LiteralType, Token, TokenType},
-};
+ use crate::{
+     error_handler::Errors,
+     tokens::{LiteralType, Token, TokenType},
+     ownership::{CheckedEnvironment, BorrowChecker},
+ };
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -36,8 +37,21 @@ impl Display for DataTypes {
         }
     }
 }
-
-
+ 
+ impl PartialEq for DataTypes {
+     fn eq(&self, other: &Self) -> bool {
+         match (self, other) {
+             (DataTypes::Number(a), DataTypes::Number(b)) => a == b,
+             (DataTypes::Bool(a), DataTypes::Bool(b)) => a == b,
+             (DataTypes::Str(a), DataTypes::Str(b)) => a == b,
+             (DataTypes::Array(a), DataTypes::Array(b)) => a == b,
+             (DataTypes::Object(a), DataTypes::Object(b)) => a == b,
+             _ => false,
+         }
+     }
+ }
+ 
+ 
 impl From<DataTypes> for f32 {
     fn from(value: DataTypes) -> Self {
         match value {
@@ -82,7 +96,9 @@ impl From<Option<LiteralType>> for DataTypes {
         match value {
             Some(LiteralType::Number(num)) => DataTypes::Number(num),
             Some(LiteralType::String(s)) => DataTypes::Str(s),
-            None => DataTypes::Number(0.0), // nil/false default
+            Some(LiteralType::Bool(b)) => DataTypes::Bool(b),
+            Some(LiteralType::Null) => DataTypes::Number(0.0),
+            None => DataTypes::Number(0.0),
         }
     }
 }
@@ -167,6 +183,340 @@ impl Default for Interpret {
         }
     }
 }
+ 
+ pub struct CheckedInterpret {
+     pub environment: Rc<RefCell<CheckedEnvironment>>,
+     pub check_borrows: bool,
+ }
+ 
+ impl Default for CheckedInterpret {
+     fn default() -> Self {
+         let borrow_checker = Rc::new(RefCell::new(BorrowChecker::new()));
+         CheckedInterpret {
+             environment: Rc::new(RefCell::new(CheckedEnvironment::new(borrow_checker))),
+             check_borrows: false,
+         }
+     }
+ }
+ 
+ impl CheckedInterpret {
+     pub fn execute(&mut self, stmt: &Statment) -> Option<DataTypes> {
+         if !self.check_borrows {
+             let mut interpreter = Interpret::default();
+             return interpreter.execute(stmt);
+         }
+         self.execute_with_borrows(stmt)
+     }
+ 
+     fn execute_with_borrows(&mut self, stmt: &Statment) -> Option<DataTypes> {
+         match stmt {
+             Statment::ExpressionStatement(expr) => {
+                 Some(self.visit_expr(expr))
+             }
+             Statment::PrintStatement(expr) => {
+                 let val = self.visit_expr(expr);
+                 println!("{val}");
+                 Some(val)
+             }
+             Statment::LetStatement(name, initializer) => {
+                 let val = self.visit_expr(initializer);
+                 let mut env = self.environment.borrow_mut();
+                 match env.declare(name.text.clone(), val.clone()) {
+                     Ok(_) => Some(val),
+                     Err(e) => {
+                         eprintln!("Borrow check error: {e}");
+                         None
+                     }
+                 }
+             }
+             Statment::IfStatement(condition, then_branch, else_branch) => {
+                 let cond_val = self.visit_expr(condition);
+                 let is_truthy = match cond_val {
+                     DataTypes::Bool(b) => b,
+                     DataTypes::Number(n) => n != 0.0,
+                     DataTypes::Str(s) => !s.is_empty(),
+                     _ => false,
+                 };
+                 if is_truthy {
+                     self.execute_with_borrows(then_branch)
+                 } else if let Some(else_stmt) = else_branch {
+                     self.execute_with_borrows(else_stmt)
+                 } else {
+                     None
+                 }
+             }
+             Statment::WhileStatement(condition, body) => {
+                 loop {
+                     let cond_val = self.visit_expr(condition);
+                     let is_truthy = match cond_val {
+                         DataTypes::Bool(b) => b,
+                         DataTypes::Number(n) => n != 0.0,
+                         DataTypes::Str(s) => !s.is_empty(),
+                         _ => false,
+                     };
+                     if !is_truthy {
+                         break;
+                     }
+                     let mut env = self.environment.borrow_mut();
+                     env.push_scope();
+                     drop(env);
+                     self.execute_with_borrows(body);
+                     let mut env = self.environment.borrow_mut();
+                     env.pop_scope();
+                 }
+                 None
+             }
+             Statment::ForStatement(init, condition, increment, body) => {
+                 if let Some(init_stmt) = init {
+                     self.execute_with_borrows(init_stmt);
+                 }
+                 loop {
+                     let should_continue = if let Some(cond_expr) = condition {
+                         let cond_val = self.visit_expr(cond_expr);
+                         match cond_val {
+                             DataTypes::Bool(b) => b,
+                             DataTypes::Number(n) => n != 0.0,
+                             DataTypes::Str(s) => !s.is_empty(),
+                             _ => false,
+                         }
+                     } else {
+                         true
+                     };
+                     if !should_continue {
+                         break;
+                     }
+                     let mut env = self.environment.borrow_mut();
+                     env.push_scope();
+                     drop(env);
+                     self.execute_with_borrows(body);
+                     if let Some(inc_expr) = increment {
+                         self.visit_expr(inc_expr);
+                     }
+                     let mut env = self.environment.borrow_mut();
+                     env.pop_scope();
+                 }
+                 None
+             }
+             Statment::BlockStatement(statements) => {
+                 let mut env = self.environment.borrow_mut();
+                 env.push_scope();
+                 drop(env);
+                 let mut last_val = None;
+                 for stmt in statements {
+                     match self.execute_with_borrows(stmt) {
+                         Some(v) => last_val = Some(v),
+                         None => (),
+                     }
+                 }
+                 let mut env = self.environment.borrow_mut();
+                 env.pop_scope();
+                 last_val
+             }
+         }
+     }
+ 
+     fn visit_expr(&mut self, e: &Expression) -> DataTypes {
+         match e {
+             Expression::Binary(left, op, right) => self.visit_binary(left, op, right),
+             Expression::Unary(op, right) => self.visit_unary(op, right),
+             Expression::Literal(token) => self.visit_literal(token),
+             Expression::Grouping(exp) => self.visit_grouping(exp),
+             Expression::Assign(name, value) => self.visit_assign(name, value),
+             Expression::Call(name, args) => self.visit_call(name, args),
+             Expression::Array(elements) => self.visit_array(elements),
+             Expression::Index(object, index) => self.visit_index(object, index),
+             Expression::Object(fields) => self.visit_object(fields),
+             Expression::Get(object, name) => self.visit_get(object, name),
+             Expression::Function(params, body) => self.visit_function(params, body),
+             Expression::Return(value) => self.visit_return(value),
+         }
+     }
+ }
+ 
+ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
+     fn visit_binary(&mut self, left: &Expression, operator: &Token, right: &Expression) -> DataTypes {
+         let left_val = self.visit_expr(left);
+         let right_val = self.visit_expr(right);
+         match operator.token_type {
+             TokenType::MINUS => bin_expr::<f32>(left_val, right_val, |a, b| a - b),
+             TokenType::PLUS => {
+                 match (&left_val, &right_val) {
+                     (DataTypes::Number(a), DataTypes::Number(b)) => (a + b).into(),
+                     (DataTypes::Str(a), DataTypes::Str(b)) => DataTypes::Str(format!("{}{}", a, b)),
+                     _ => unimplemented!("PLUS not supported for these types"),
+                 }
+             }
+             TokenType::SLASH => bin_expr::<f32>(left_val, right_val, |a, b| a / b),
+             TokenType::STAR => bin_expr::<f32>(left_val, right_val, |a, b| a * b),
+             TokenType::EqualEqual => {
+                 let l: DataTypes = left_val.clone();
+                 let r: DataTypes = right_val.clone();
+                 (l == r).into()
+             }
+             TokenType::BangEqual => {
+                 let l: DataTypes = left_val.clone();
+                 let r: DataTypes = right_val.clone();
+                 (l != r).into()
+             }
+            TokenType::GREATER => bin_expr::<f32>(left_val, right_val, |a, b| (a > b).into()),
+            TokenType::GreaterEqual => bin_expr::<f32>(left_val, right_val, |a, b| (a >= b).into()),
+            TokenType::LESS => bin_expr::<f32>(left_val, right_val, |a, b| (a < b).into()),
+            TokenType::LessEqual => bin_expr::<f32>(left_val, right_val, |a, b| (a <= b).into()),
+             _ => unimplemented!("Binary operator not implemented"),
+         }
+     }
+ 
+     fn visit_unary(&mut self, operator: &Token, right: &Expression) -> DataTypes {
+         let right_val = self.visit_expr(right);
+         match operator.token_type {
+             TokenType::MINUS => match right_val {
+                 DataTypes::Number(n) => (-n).into(),
+                 _ => unimplemented!("Unary minus only for numbers"),
+             },
+             TokenType::BANG => match right_val {
+                 DataTypes::Bool(b) => (!b).into(),
+                 DataTypes::Number(n) => (n == 0.0).into(),
+                 DataTypes::Str(s) => s.is_empty().into(),
+                 _ => true.into(),
+             },
+             _ => unimplemented!("Unary operator not implemented"),
+         }
+     }
+ 
+    fn visit_literal(&mut self, token: &Token) -> DataTypes {
+        match token.token_type {
+            TokenType::NUMBER => token.literal.clone().into(),
+            TokenType::STRING => token.literal.clone().into(),
+            TokenType::TRUE => DataTypes::Bool(true),
+            TokenType::FALSE => DataTypes::Bool(false),
+            TokenType::NIL => DataTypes::Number(0.0),
+            TokenType::IDENTIFIER => {
+                let mut env = self.environment.borrow_mut();
+                match env.check_use(&token.text, "use".to_string()) {
+                    Ok(_) => env.get(&token.text).unwrap_or_else(|| DataTypes::Str(format!("undefined:{}", token.text))),
+                    Err(e) => {
+                        eprintln!("Borrow check error: {e}");
+                        env.get(&token.text).unwrap_or_else(|| DataTypes::Str(format!("undefined:{}", token.text)))
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+ 
+     fn visit_grouping(&mut self, expression: &Expression) -> DataTypes {
+         self.visit_expr(expression)
+     }
+ 
+     fn visit_assign(&mut self, name: &str, value: &Expression) -> DataTypes {
+         let val = self.visit_expr(value);
+         let mut env = self.environment.borrow_mut();
+         match env.assign(name.to_string(), val.clone()) {
+             Ok(_) => val,
+             Err(e) => {
+                 eprintln!("Borrow check error on assign: {e}");
+                 val
+             }
+         }
+     }
+ 
+     fn visit_call(&mut self, name: &str, args: &[Expression]) -> DataTypes {
+         let arg_vals: Vec<DataTypes> = args.iter().map(|a| self.visit_expr(a)).collect();
+ 
+         let mut env = self.environment.borrow_mut();
+         if let Some(func) = env.get(name) {
+             match func {
+                 DataTypes::Function { params, body, capture } => {
+                     if params.len() != arg_vals.len() {
+                         eprintln!("Argument count mismatch: expected {}, got {}", params.len(), arg_vals.len());
+                         return DataTypes::Number(0.0);
+                     }
+                     let mut new_env = env.clone();
+                     new_env.push_scope();
+                     for (i, param) in params.iter().enumerate() {
+                         let _ = new_env.declare(param.clone(), arg_vals[i].clone());
+                     }
+                    drop(env);
+                    let borrow_checker = self.environment.borrow().borrow_checker.clone();
+                    let mut interp = CheckedInterpret {
+                        environment: Rc::new(RefCell::new(CheckedEnvironment::new(borrow_checker))),
+                        check_borrows: self.check_borrows,
+                    };
+                    // Copy vars from captured environment
+                    interp.environment.borrow_mut().vars = capture.borrow().vars.clone();
+                    interp.environment.borrow_mut().vars.extend(new_env.vars.clone());
+                    interp.execute_with_borrows(&*body).unwrap_or(DataTypes::Number(0.0))
+                 }
+                 _ => {
+                     eprintln!("'{name}' is not a function");
+                     DataTypes::Number(0.0)
+                 }
+             }
+         } else {
+             eprintln!("Undefined function '{name}'");
+             DataTypes::Number(0.0)
+         }
+     }
+ 
+     fn visit_array(&mut self, elements: &[Expression]) -> DataTypes {
+         let vals: Vec<DataTypes> = elements.iter().map(|e| self.visit_expr(e)).collect();
+         DataTypes::Array(vals)
+     }
+ 
+     fn visit_index(&mut self, object: &Expression, index: &Expression) -> DataTypes {
+         let obj = self.visit_expr(object);
+         let idx = self.visit_expr(index);
+         match (obj, idx) {
+             (DataTypes::Array(arr), DataTypes::Number(i)) => {
+                 let i = i as usize;
+                 if i < arr.len() {
+                     arr[i].clone()
+                 } else {
+                     DataTypes::Number(0.0)
+                 }
+             }
+             (DataTypes::Object(obj), DataTypes::Str(key)) => {
+                 obj.get(&key).cloned().unwrap_or(DataTypes::Number(0.0))
+             }
+             _ => DataTypes::Number(0.0),
+         }
+     }
+ 
+     fn visit_object(&mut self, fields: &[(String, Expression)]) -> DataTypes {
+         let mut map = std::collections::HashMap::new();
+         for (key, expr) in fields {
+             map.insert(key.clone(), self.visit_expr(expr));
+         }
+         DataTypes::Object(map)
+     }
+ 
+     fn visit_get(&mut self, object: &Expression, name: &str) -> DataTypes {
+         let obj = self.visit_expr(object);
+         match obj {
+             DataTypes::Object(map) => map.get(name).cloned().unwrap_or(DataTypes::Number(0.0)),
+             _ => DataTypes::Number(0.0),
+         }
+     }
+ 
+    fn visit_function(&mut self, params: &[String], body: &Statment) -> DataTypes {
+        // Convert CheckedEnvironment to Environment for capture
+        let capture_env = Environment::new(self.environment.borrow().vars.clone());
+        DataTypes::Function {
+            params: params.to_vec(),
+            body: Box::new(body.clone()),
+            capture: Rc::new(RefCell::new(capture_env)),
+        }
+    }
+ 
+     fn visit_return(&mut self, value: &Option<Box<Expression>>) -> DataTypes {
+         if let Some(expr) = value {
+             self.visit_expr(expr)
+         } else {
+             DataTypes::Number(0.0)
+         }
+     }
+ }
+ 
 
 impl ExpressionVisitor<DataTypes> for Interpret {
     fn visit_binary(&mut self, left: &Expression, operator: &Token, right: &Expression) -> DataTypes {
