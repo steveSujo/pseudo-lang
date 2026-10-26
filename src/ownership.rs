@@ -24,8 +24,7 @@ impl Default for Lifetime {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum Ownership {
     /// Fully owned value - can be moved, dropped, or borrowed
     #[default]
@@ -37,7 +36,6 @@ pub enum Ownership {
     /// Static lifetime - never dropped, always valid
     Static,
 }
-
 
 impl Ownership {
     pub fn is_owned(&self) -> bool {

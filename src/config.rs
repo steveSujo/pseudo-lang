@@ -6,8 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 /// Project configuration for psudo
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProjectConfig {
     /// Sandbox configuration
     pub sandbox: SandboxConfig,
@@ -83,7 +82,6 @@ impl Default for SandboxConfig {
         }
     }
 }
-
 
 /// Find project config file by walking up from current directory
 pub fn find_project_config() -> Option<PathBuf> {
