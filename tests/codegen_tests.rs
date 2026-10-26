@@ -128,7 +128,7 @@ fn test_codegen_compile_simple() {
     let program = lower.lower_program(&statements);
     
     // Test that codegen doesn't panic
-    let mut ctx = psudo::codegen::CodegenContext::new();
+    let mut ctx = psudo::codegen::CodegenContext::for_host().unwrap();
     let result = ctx.compile_program(&program);
     assert!(result.is_ok());
 }
@@ -150,7 +150,7 @@ fn test_codegen_multiple_functions() {
     let mut lower = MirLower::new();
     let program = lower.lower_program(&statements);
     
-    let mut ctx = psudo::codegen::CodegenContext::new();
+    let mut ctx = psudo::codegen::CodegenContext::for_host().unwrap();
     let result = ctx.compile_program(&program);
     assert!(result.is_ok());
 }

@@ -18,6 +18,8 @@ cranelift-frontend = { version = "0.109", features = ["default"] }
 cranelift-module = { version = "0.109", features = ["default"] }
 cranelift-native = { version = "0.109", features = ["default"] }
 target-lexicon = "0.12"
+object = "0.32"
+goblin = "0.7"
 
 [[test]]
 name = "integration_tests"
@@ -25,3 +27,7 @@ path = "tests/integration_tests.rs"
 
 [[test]]
 name = "lsp_tests"
+
+[[test]]
+name = "codegen_tests"
+path = "tests/codegen_tests.rs"

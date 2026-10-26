@@ -1,17 +1,78 @@
-// Cranelift codegen module - working version with proper API
+// Cranelift codegen module - placeholder implementation with cross-platform target support
 
 use crate::mir::{MirProgram, MirFunction, MirInst, MirType, StackSlotId, FuncId, BlockId, IntCond};
 use std::collections::HashMap;
 
-/// Codegen context for translating MIR to Cranelift IR
+/// Target specification for cross-compilation
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TargetSpec {
+    pub triple: String,
+    pub is_windows: bool,
+    pub is_macos: bool,
+    pub is_linux: bool,
+    pub is_musl: bool,
+    pub pointer_size: u8,
+}
+
+impl TargetSpec {
+    pub fn from_triple(triple: &str) -> Result<Self, String> {
+        let is_windows = triple.contains("windows");
+        let is_macos = triple.contains("macos") || triple.contains("darwin");
+        let is_linux = triple.contains("linux");
+        let is_musl = triple.contains("musl");
+        
+        let pointer_size = if triple.contains("x86_64") || triple.contains("aarch64") {
+            8
+        } else if triple.contains("x86") || (triple.contains("arm") && !triple.contains("aarch64")) {
+            4
+        } else {
+            8
+        };
+        
+        Ok(Self {
+            triple: triple.to_string(),
+            is_windows,
+            is_macos,
+            is_linux,
+            is_musl,
+            pointer_size,
+        })
+    }
+    
+    pub fn host() -> Self {
+        let host = std::env::consts::ARCH;
+        let os = std::env::consts::OS;
+        let triple = format!("{}-{}-unknown", host, os);
+        Self::from_triple(&triple).unwrap_or_else(|_| TargetSpec {
+            triple: "x86_64-unknown-linux-gnu".to_string(),
+            is_windows: false,
+            is_macos: false,
+            is_linux: true,
+            is_musl: false,
+            pointer_size: 8,
+        })
+    }
+}
+
+/// Codegen context for translating MIR to Cranelift IR (placeholder implementation)
 pub struct CodegenContext {
+    target: TargetSpec,
     func_map: HashMap<FuncId, usize>,
     next_func_id: usize,
 }
 
 impl CodegenContext {
-    pub fn new() -> Self {
+    pub fn for_host() -> Result<Self, String> {
+        Ok(Self::new(TargetSpec::host()))
+    }
+    
+    pub fn for_target(triple: &str) -> Result<Self, String> {
+        Ok(Self::new(TargetSpec::from_triple(triple)?))
+    }
+    
+    fn new(target: TargetSpec) -> Self {
         Self {
+            target,
             func_map: HashMap::new(),
             next_func_id: 0,
         }
@@ -25,7 +86,7 @@ impl CodegenContext {
         })
     }
 
-    /// Compile a MIR program (full Cranelift implementation placeholder)
+    /// Compile a MIR program (placeholder implementation)
     pub fn compile_program(&mut self, program: &MirProgram) -> Result<(), String> {
         // First pass: register all functions
         for func in &program.functions {
@@ -52,35 +113,41 @@ impl CodegenContext {
 
     fn compile_inst(&mut self, _func: &MirFunction, inst: &MirInst) -> Result<(), String> {
         match inst {
-            crate::mir::MirInst::Alloc { slot: _, ty: _, ownership: _ } => Ok(()),
-            crate::mir::MirInst::Load { dest: _, src: _, ty: _ } => Ok(()),
-            crate::mir::MirInst::Store { dest: _, src: _, ty: _ } => Ok(()),
-            crate::mir::MirInst::Move { dest: _, src: _ } => Ok(()),
-            crate::mir::MirInst::Borrow { dest: _, src: _, mutable: _ } => Ok(()),
-            crate::mir::MirInst::ReleaseBorrow { slot: _ } => Ok(()),
-            crate::mir::MirInst::IAdd { dest: _, lhs: _, rhs: _ } => Ok(()),
-            crate::mir::MirInst::ISub { dest: _, lhs: _, rhs: _ } => Ok(()),
-            crate::mir::MirInst::IMul { dest: _, lhs: _, rhs: _ } => Ok(()),
-            crate::mir::MirInst::IDiv { dest: _, lhs: _, rhs: _ } => Ok(()),
-            crate::mir::MirInst::ICmp { dest: _, lhs: _, rhs: _, cond: _ } => Ok(()),
-            crate::mir::MirInst::BrIf { cond: _, then_block: _, else_block: _ } => Ok(()),
-            crate::mir::MirInst::Br { target: _ } => Ok(()),
-            crate::mir::MirInst::Call { dest: _, func: _, args: _ } => Ok(()),
-            crate::mir::MirInst::Return { value: _ } => Ok(()),
-            crate::mir::MirInst::IConst { dest: _, value: _ } => Ok(()),
-            crate::mir::MirInst::Nop => Ok(()),
+            MirInst::Alloc { .. } => Ok(()),
+            MirInst::Load { .. } => Ok(()),
+            MirInst::Store { .. } => Ok(()),
+            MirInst::Move { .. } => Ok(()),
+            MirInst::Borrow { .. } => Ok(()),
+            MirInst::ReleaseBorrow { .. } => Ok(()),
+            MirInst::IAdd { .. } => Ok(()),
+            MirInst::ISub { .. } => Ok(()),
+            MirInst::IMul { .. } => Ok(()),
+            MirInst::IDiv { .. } => Ok(()),
+            MirInst::ICmp { .. } => Ok(()),
+            MirInst::BrIf { .. } => Ok(()),
+            MirInst::Br { .. } => Ok(()),
+            MirInst::Call { .. } => Ok(()),
+            MirInst::Return { .. } => Ok(()),
+            MirInst::IConst { .. } => Ok(()),
+            MirInst::Nop => Ok(()),
         }
     }
 }
 
 impl Default for CodegenContext {
     fn default() -> Self {
-        Self::new()
+        Self::new(TargetSpec::host())
     }
 }
 
 /// Compile MIR program to object file (placeholder)
 pub fn compile_mir_to_object(_program: &MirProgram, _output_path: &str) -> Result<(), String> {
-    let mut ctx = CodegenContext::new();
+    let mut ctx = CodegenContext::new(TargetSpec::host());
+    ctx.compile_program(_program)
+}
+
+/// Compile MIR program for a specific target
+pub fn compile_mir_for_target(_program: &MirProgram, _target_triple: &str, _output_path: &str) -> Result<(), String> {
+    let mut ctx = CodegenContext::new(TargetSpec::host());
     ctx.compile_program(_program)
 }
