@@ -197,7 +197,8 @@ cd lean && lake build
 | LSP Server | ✅ Complete |
 | Lean spec | ✅ Complete |
 | Lean proofs | ⚠️ Partial (24/30) |
-
+| MIR & Borrow Checker | ✅ Complete |
+| Cranelift Codegen | 🚧 Deferred (cranelift 0.109 API migration needed) |
 ## License
 
 MIT License - see [LICENSE.md](LICENSE.md)
