@@ -1,14 +1,16 @@
 # psudo Roadmap: Interpreted → Compiled
 
-## Current Version: **0.2.0** (Phase 1 Complete)
+## Current Version: **0.3.2** (Phase 1 Complete, Tools Automated)
 
 ### Version History
 | Version | Date | Phase | Key Features |
 |---------|------|-------|--------------|
 | 0.1.0 | 2024-10-23 | 0 | Lexer, Parser, Basic Interpreter |
 | 0.2.0 | 2024-10-24 | 1 | Lean 4 Verification, Sandbox FS, LSP, Config, **Borrow Checker** |
+| 0.3.0 | 2024-10-26 | 1 | **Phase 1 Complete**, OMP Tools Automation |
+| 0.3.1 | 2024-10-26 | 1 | Patch: clippy fixes |
+| 0.3.2 | 2024-10-26 | 1 | Patch: test automation verified |
 
-Build a dual-mode language: **interpreted first** (rapid iteration, memory safety validation), **compiled second** (safe native artifacts). The interpreter acts as a "borrow checker simulator" — ironing out ownership/memory issues before code reaches the compiler backend.
 
 ---
 
@@ -166,15 +168,20 @@ psudo build --target x86_64-pc-windows-msvc
 
 ## Milestones
 
-| Milestone | Target | Deliverable |
-|-----------|--------|-------------|
-| M1 | IR + borrow checker in interpreter | `--check-borrows` flag |
-| M2 | Cranelift backend, x86_64 Linux | `psudo build` → native binary |
-| M3 | Windows + macOS | Cross-compile from Linux |
-| M4 | Module system + stdlib | Usable for real projects |
-| M5 | WASM target | Web deployment |
+| Milestone | Target | Deliverable | Version Bump |
+|-----------|--------|-------------|--------------|
+| M1 | IR + borrow checker in interpreter | `--check-borrows` flag | 0.2.0 (minor) |
+| M2 | Cranelift backend, x86_64 Linux | `psudo build` → native binary | 0.4.0 (minor) |
+| M3 | Windows + macOS | Cross-compile from Linux | 0.5.0 (minor) |
+| M4 | Module system + stdlib | Usable for real projects | 0.6.0 (minor) |
+| M5 | WASM target | Web deployment | 0.7.0 (minor) |
 
----
+### Version Bump Rules
+- **Phase completion** → minor version (0.x.0 → 0.(x+1).0)
+- **Patch fixes** → patch version (0.x.y → 0.x.(y+1))
+- **Major breaking changes** → major version (x.0.0 → (x+1).0.0)
+- Each milestone commit should tag: `git tag v<version>`
+
 
 ## Risk Mitigation
 
