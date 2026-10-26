@@ -38,7 +38,14 @@ todo(op="init", list=[
 ### Git
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
 - One logical change per commit
-- No direct pushes to main without PR (when team grows)
+### Milestone Commits
+- **After completing a major milestone** (Phase, Epic, significant feature):
+  1. Stage all changes: `git add -A`
+  2. Create conventional commit: `git commit -m "<type>: <description>"`
+  3. Update CHANGELOG.md from git history
+  4. Push to remote: `git push`
+- Milestone commits should summarize the completed work in the message body
+- Reference related todos/issues in commit body
 
 ### Testing
 - All new features need tests
