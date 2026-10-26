@@ -46,7 +46,30 @@ todo(op="init", list=[
 - Integration tests for CLI features
 - LSP tests for language server changes
 
-### Documentation
+## Documentation
 - Update README.md for user-facing changes
 - Update AGENTS.md for architecture changes
 - Note/ folder for reference docs (syntax, config, status)
+
+## Syntax Flag Maintenance
+
+**ALWAYS update syntax reference when language syntax changes.**
+
+### Triggers (any of these require syntax update):
+- New keyword, operator, or literal form
+- New built-in function
+- Change to control flow syntax
+- Change to variable declaration syntax
+- New type or type syntax
+- Change to comment syntax
+- New statement form
+
+### Required updates:
+1. `print_syntax()` function in `src/main.rs` — compressed LLM-optimized output
+2. `note/syntax.md` — run `psudo -s > note/syntax.md` and commit
+3. `note/psudo.toml.example` if config-related syntax added
+4. `README.md` language reference section if user-facing
+
+### Verification:
+- Run `psudo -s` and verify output matches current language
+- Run `cargo test` to ensure syntax tests pass
