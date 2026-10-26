@@ -3,6 +3,8 @@ pub mod error_handler;
 pub mod fs;
 pub mod lexer;
 pub mod lsp;
+pub mod mir;
+pub mod codegen;
 pub mod ownership;
 pub mod parser;
 pub mod tokens {

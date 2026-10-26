@@ -1494,17 +1494,6 @@ impl Parser {
                     return self.function_literal();
                 }
 
-                TokenType::RETURN => {
-                    let value = if self.check(TokenType::SEMICOLON)
-                        || self.check(TokenType::RightBrace)
-                        || self.is_at_end()
-                    {
-                        None
-                    } else {
-                        Some(Box::new(self.expression()?))
-                    };
-                    return Ok(Expression::Return(value));
-                }
 
                 TokenType::IDENTIFIER => {
                     // Check if this is a function call (identifier followed by '(')
