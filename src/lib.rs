@@ -69,11 +69,11 @@ pub mod tokens {
         OR,
         PRINT,
         RETURN,
+        SUPER,
         THIS,
         TRUE,
         LET,
         WHILE,
-
         ARROW,
 
         // Indentation-based block structure

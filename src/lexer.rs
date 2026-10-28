@@ -100,7 +100,6 @@ impl Lexer {
         ));
         self.indent_stack.pop();
     }
-    
     fn scan_token(&mut self) -> Result<(), Errors> {
         let character = self.advance();
         
@@ -111,6 +110,7 @@ impl Lexer {
                 self.emit_newline();
                 self.line += 1;
                 self.column = 1;
+                self.at_line_start = true;
                 return Ok(());
             } else if character == ' ' || character == '\t' {
                 // Count leading whitespace
@@ -412,6 +412,7 @@ impl Lexer {
             "or" => TokenType::OR,
             "print" => TokenType::PRINT,
             "return" => TokenType::RETURN,
+            "super" => TokenType::SUPER,
             "this" => TokenType::THIS,
             "true" => TokenType::TRUE,
             "let" => TokenType::LET,

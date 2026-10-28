@@ -1,11 +1,76 @@
 use std::{cell::RefCell, fmt::Display, iter::Peekable, rc::Rc, vec::IntoIter};
+use std::collections::HashMap;
 
 use crate::{
     error_handler::Errors,
     ownership::{BorrowChecker, CheckedEnvironment},
     tokens::{LiteralType, Token, TokenType},
 };
-use std::collections::HashMap;
+// LoxClass and LoxInstance for OOP support
+#[derive(Debug, Clone)]
+pub struct LoxClass {
+    pub name: String,
+    pub methods: HashMap<String, LoxFunction>,
+    pub superclass: Option<Rc<LoxClass>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LoxInstance {
+    pub class: Rc<LoxClass>,
+    pub fields: HashMap<String, DataTypes>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LoxFunction {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Box<Statment>,
+    pub closure: Rc<RefCell<Environment>>,
+    pub is_initializer: bool,
+}
+
+impl LoxClass {
+    pub fn new(name: String, methods: HashMap<String, LoxFunction>, superclass: Option<Rc<LoxClass>>) -> Self {
+        LoxClass { name, methods, superclass }
+    }
+
+    pub fn find_method(&self, name: &str) -> Option<LoxFunction> {
+        if let Some(method) = self.methods.get(name) {
+            return Some(method.clone());
+        }
+        if let Some(superclass) = &self.superclass {
+            return superclass.find_method(name);
+        }
+        None
+    }
+}
+
+impl LoxInstance {
+    pub fn new(class: Rc<LoxClass>) -> Self {
+        LoxInstance {
+            class,
+            fields: HashMap::new(),
+        }
+    }
+
+    pub fn get(&self, name: &str) -> Option<DataTypes> {
+        if let Some(value) = self.fields.get(name) {
+            return Some(value.clone());
+        }
+        if let Some(method) = self.class.find_method(name) {
+            return Some(DataTypes::Function {
+                params: method.params,
+                body: method.body,
+                capture: method.closure,
+            });
+        }
+        None
+    }
+
+    pub fn set(&mut self, name: String, value: DataTypes) {
+        self.fields.insert(name, value);
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum DataTypes {
@@ -19,6 +84,8 @@ pub enum DataTypes {
         body: Box<Statment>,
         capture: Rc<RefCell<Environment>>,
     },
+    Class(Rc<LoxClass>),
+    Instance(Rc<LoxInstance>),
     Result(Result<Box<DataTypes>, Box<DataTypes>>),
 }
 impl Display for DataTypes {
@@ -44,6 +111,8 @@ impl Display for DataTypes {
                     .join(", ")
             ),
             DataTypes::Function { params, .. } => write!(f, "<fn {}>", params.join(", ")),
+            DataTypes::Class(class) => write!(f, "<class {}>", class.name),
+            DataTypes::Instance(instance) => write!(f, "<instance of {}>", instance.class.name),
             DataTypes::Result(r) => match r {
                 Ok(v) => write!(f, "Ok({v})"),
                 Err(e) => write!(f, "Err({e})"),
@@ -60,6 +129,8 @@ impl PartialEq for DataTypes {
             (DataTypes::Str(a), DataTypes::Str(b)) => a == b,
             (DataTypes::Array(a), DataTypes::Array(b)) => a == b,
             (DataTypes::Object(a), DataTypes::Object(b)) => a == b,
+            (DataTypes::Class(a), DataTypes::Class(b)) => a.name == b.name,
+            (DataTypes::Instance(a), DataTypes::Instance(b)) => a.class.name == b.class.name,
             _ => false,
         }
     }
@@ -75,6 +146,8 @@ impl From<DataTypes> for f32 {
             DataTypes::Array(_) => 0.0,
             DataTypes::Object(_) => 0.0,
             DataTypes::Function { .. } => 0.0,
+            DataTypes::Class(_) => 0.0,
+            DataTypes::Instance(_) => 0.0,
             DataTypes::Result(_) => 0.0,
         }
     }
@@ -94,6 +167,8 @@ impl From<DataTypes> for bool {
             DataTypes::Array(arr) => !arr.is_empty(),
             DataTypes::Object(obj) => !obj.is_empty(),
             DataTypes::Function { .. } => true,
+            DataTypes::Class(_) => true,
+            DataTypes::Instance(_) => true,
             DataTypes::Result(r) => r.is_ok(),
         }
     }
@@ -131,6 +206,7 @@ pub enum Expression {
     Set(Box<Expression>, String, Box<Expression>),
     This,
     Super(String), // super.method()
+    SuperCall(String, Vec<Expression>), // super.method(args)
     Function(Vec<String>, Box<Statment>),
     Return(Option<Box<Expression>>),
 }
@@ -152,6 +228,7 @@ pub trait ExpressionVisitor<T> {
     fn visit_set(&mut self, object: &Expression, name: &str, value: &Expression) -> T;
     fn visit_this(&mut self) -> T;
     fn visit_super(&mut self, method: &str) -> T;
+    fn visit_super_call(&mut self, method: &str, args: &[Expression]) -> T;
     fn visit_function(&mut self, params: &[String], body: &Statment) -> T;
     fn visit_return(&mut self, value: &Option<Box<Expression>>) -> T;
 }
@@ -331,6 +408,33 @@ impl CheckedInterpret {
                 env.pop_scope();
                 last_val
             }
+            Statment::ClassStatement(name_token, methods, superclass) => {
+                let class_name = name_token.text.clone();
+                let mut class_methods = std::collections::HashMap::new();
+                // Convert CheckedEnvironment to regular Environment for closure capture
+                let parent_env = Environment::new(self.environment.borrow().vars.clone());
+                for method_stmt in methods {
+                    if let Statment::ExpressionStatement(Expression::Function(params, body)) = method_stmt {
+                        let method_name = params.first().cloned().unwrap_or_default();
+                        let capture = Rc::new(RefCell::new(Environment::with_parent(
+                            HashMap::new(),
+                            Rc::new(RefCell::new(parent_env.clone())),
+                        )));
+                        let lox_function = LoxFunction {
+                            name: method_name.clone(),
+                            params: params.clone(),
+                            body: body.clone(),
+                            closure: capture,
+                            is_initializer: method_name == "init",
+                        };
+                        class_methods.insert(method_name, lox_function);
+                    }
+                }
+                // Create LoxClass and store in environment
+                let lox_class = Rc::new(LoxClass::new(class_name.clone(), class_methods, None));
+                self.environment.borrow_mut().define(class_name, DataTypes::Class(lox_class));
+                None
+            }
         }
     }
 
@@ -349,6 +453,7 @@ impl CheckedInterpret {
             Expression::Set(object, name, value) => self.visit_set(object, name, value),
             Expression::This => self.visit_this(),
             Expression::Super(method) => self.visit_super(method),
+            Expression::SuperCall(method, args) => self.visit_super_call(method, args),
             Expression::Function(params, body) => self.visit_function(params, body),
             Expression::Return(value) => self.visit_return(value),
         }
@@ -454,6 +559,38 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
         let env = self.environment.borrow_mut();
         if let Some(func) = env.get(name) {
             match func {
+                DataTypes::Class(class) => {
+                    // Create instance
+                    let instance = DataTypes::Instance(Rc::new(LoxInstance::new(class.clone())));
+                    // If class has init method, call it
+                    if let Some(init_method) = class.find_method("init") {
+                        let mut new_env = env.clone();
+                        new_env.push_scope();
+                        for (i, param) in init_method.params.iter().enumerate() {
+                            if i < arg_vals.len() {
+                                let _ = new_env.declare(param.clone(), arg_vals[i].clone());
+                            }
+                        }
+                        drop(env);
+                        let borrow_checker = self.environment.borrow().borrow_checker.clone();
+                        let mut interp = CheckedInterpret {
+                            environment: Rc::new(RefCell::new(CheckedEnvironment::new(borrow_checker))),
+                            check_borrows: self.check_borrows,
+                        };
+                        // Copy vars from captured environment
+                        interp.environment.borrow_mut().vars = init_method.closure.borrow().vars.clone();
+                        interp
+                            .environment
+                            .borrow_mut()
+                            .vars
+                            .extend(new_env.vars.clone());
+                        interp
+                            .execute_with_borrows(&init_method.body)
+                            .unwrap_or(DataTypes::Number(0.0));
+                        return instance;
+                    }
+                    return instance;
+                }
                 DataTypes::Function {
                     params,
                     body,
@@ -490,12 +627,12 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
                         .unwrap_or(DataTypes::Number(0.0))
                 }
                 _ => {
-                    eprintln!("'{name}' is not a function");
+                    eprintln!("'{name}' is not a function or class");
                     DataTypes::Number(0.0)
                 }
             }
         } else {
-            eprintln!("Undefined function '{name}'");
+            eprintln!("Undefined function or class '{name}'");
             DataTypes::Number(0.0)
         }
     }
@@ -536,6 +673,7 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
         let obj = self.visit_expr(object);
         match obj {
             DataTypes::Object(map) => map.get(name).cloned().unwrap_or(DataTypes::Number(0.0)),
+            DataTypes::Instance(instance) => instance.get(name).unwrap_or(DataTypes::Str("Property not found".to_string())),
             _ => DataTypes::Number(0.0),
         }
     }
@@ -573,9 +711,12 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
     fn visit_this(&mut self) -> DataTypes {
         DataTypes::Str("this not bound".to_string())
     }
-
     fn visit_super(&mut self, method: &str) -> DataTypes {
         DataTypes::Str(format!("super.{} not bound", method))
+    }
+
+    fn visit_super_call(&mut self, method: &str, args: &[Expression]) -> DataTypes {
+        DataTypes::Str(format!("super.{}({}) not bound", method, args.len()))
     }
 }
 impl ExpressionVisitor<DataTypes> for Interpret {
@@ -656,11 +797,13 @@ impl ExpressionVisitor<DataTypes> for Interpret {
             TokenType::TRUE => DataTypes::Bool(true),
             TokenType::FALSE => DataTypes::Bool(false),
             TokenType::NIL => DataTypes::Number(0.0),
-            TokenType::IDENTIFIER => self
-                .environment
-                .borrow()
-                .get(&token.text)
-                .unwrap_or_else(|| DataTypes::Str(format!("undefined:{}", token.text))),
+            TokenType::IDENTIFIER => {
+                self
+                    .environment
+                    .borrow()
+                    .get(&token.text)
+                    .unwrap_or_else(|| DataTypes::Str(format!("undefined:{}", token.text)))
+            }
             _ => unimplemented!(),
         }
     }
@@ -676,11 +819,68 @@ impl ExpressionVisitor<DataTypes> for Interpret {
             .set(name.to_string(), val.clone());
         val
     }
-
     fn visit_call(&mut self, name: &str, args: &[Expression]) -> DataTypes {
         // Evaluate all arguments first
         let arg_vals: Vec<DataTypes> = args.iter().map(|a| self.visit_expr(a)).collect();
 
+        // Check for class instantiation
+        let class = match self.environment.borrow().get(name) {
+            Some(DataTypes::Class(c)) => Some(c.clone()),
+            _ => None,
+        };
+        if let Some(class) = class {
+            // Create instance
+            let instance = DataTypes::Instance(Rc::new(LoxInstance::new(class.clone())));
+            // If class has init method, call it
+            if let Some(init_method) = class.find_method("init") {
+                let mut new_env = Environment::with_parent(HashMap::new(), init_method.closure.clone());
+                for (i, param) in init_method.params.iter().enumerate() {
+                    if i < arg_vals.len() {
+                        new_env.define(param.clone(), arg_vals[i].clone());
+                    }
+                }
+                let old_env = self.environment.clone();
+                self.environment = Rc::new(RefCell::new(new_env));
+                let result = self.execute(&init_method.body);
+                self.environment = old_env;
+                return result.unwrap_or(DataTypes::Number(0.0));
+            }
+            return instance;
+        }
+
+        // Check for method call on instance (first arg is instance, method name is 'name')
+        if !arg_vals.is_empty() {
+            if let DataTypes::Instance(instance) = &arg_vals[0] {
+                // Look up method on instance
+                if let Some(method) = instance.get(name) {
+                    if let DataTypes::Function {
+                        params,
+                        body,
+                        capture,
+                    } = method
+                    {
+                        // Bind 'this' to the instance
+                        let mut new_env = Environment::with_parent(HashMap::new(), capture.clone());
+                        // First param is 'this' (or implicit receiver)
+                        // The parser already prepends the instance as first arg
+                        for (i, param) in params.iter().enumerate() {
+                            if i < arg_vals.len() {
+                                new_env.define(param.clone(), arg_vals[i].clone());
+                            }
+                        }
+                        let old_env = self.environment.clone();
+                        self.environment = Rc::new(RefCell::new(new_env));
+                        let result = self.execute(&body);
+                        self.environment = old_env;
+                        return result.unwrap_or(DataTypes::Number(0.0));
+                    }
+                }
+            }
+        }
+        if let Some(DataTypes::Instance(_instance)) = self.environment.borrow().get(name) {
+            // This is an instance variable, not a function
+            // Fall through to method call handling via Get/Call combination
+        }
         // Check for user-defined function in environment
         let func_data = self.environment.borrow().get(name);
         if let Some(DataTypes::Function {
@@ -749,6 +949,8 @@ impl ExpressionVisitor<DataTypes> for Interpret {
                             .join(", ")
                     ),
                     DataTypes::Function { params, .. } => format!("<fn {}>", params.join(", ")),
+                    DataTypes::Class(class) => format!("<class {}>", class.name),
+                    DataTypes::Instance(instance) => format!("<instance of {}>", instance.class.name),
                     DataTypes::Result(r) => match r {
                         Ok(v) => format!("Ok({})", v),
                         Err(e) => format!("Err({})", e),
@@ -1026,10 +1228,10 @@ impl ExpressionVisitor<DataTypes> for Interpret {
         let obj = self.visit_expr(object);
         match obj {
             DataTypes::Object(map) => map.get(name).cloned().unwrap_or(DataTypes::Number(0.0)),
+            DataTypes::Instance(instance) => instance.get(name).unwrap_or(DataTypes::Str("Property not found".to_string())),
             _ => DataTypes::Str("Not an object".to_string()),
         }
     }
-
     fn visit_function(&mut self, params: &[String], body: &Statment) -> DataTypes {
         let parent_env = self.environment.clone();
         let capture = Rc::new(RefCell::new(Environment::with_parent(
@@ -1069,6 +1271,37 @@ impl ExpressionVisitor<DataTypes> for Interpret {
     fn visit_super(&mut self, method: &str) -> DataTypes {
         DataTypes::Str(format!("super.{} not bound", method))
     }
+
+    fn visit_super_call(&mut self, method: &str, args: &[Expression]) -> DataTypes {
+        // Evaluate arguments
+        let arg_vals: Vec<DataTypes> = args.iter().map(|a| self.visit_expr(a)).collect();
+        
+        // Get 'this' from environment (should be the current instance)
+        let this_instance = match self.environment.borrow().get("this") {
+            Some(DataTypes::Instance(instance)) => instance,
+            _ => return DataTypes::Str("super call: 'this' not bound".to_string()),
+        };
+        
+        // Get superclass from the instance's class
+        if let Some(superclass) = &this_instance.class.superclass {
+            if let Some(super_method) = superclass.find_method(method) {
+                // Bind 'this' to the current instance
+                let mut new_env = Environment::with_parent(HashMap::new(), super_method.closure.clone());
+                for (i, param) in super_method.params.iter().enumerate() {
+                    if i < arg_vals.len() {
+                        new_env.define(param.clone(), arg_vals[i].clone());
+                    }
+                }
+                let old_env = self.environment.clone();
+                self.environment = Rc::new(RefCell::new(new_env));
+                let result = self.execute(&super_method.body);
+                self.environment = old_env;
+                return result.unwrap_or(DataTypes::Number(0.0));
+            }
+        }
+        
+        DataTypes::Str(format!("super method '{}' not found", method))
+    }
 }
 
 impl Interpret {
@@ -1087,6 +1320,7 @@ impl Interpret {
             Expression::Set(object, name, value) => self.visit_set(object, name, value),
             Expression::This => self.visit_this(),
             Expression::Super(method) => self.visit_super(method),
+            Expression::SuperCall(method, args) => self.visit_super_call(method, args),
             Expression::Function(params, body) => self.visit_function(params, body),
             Expression::Return(value) => self.visit_return(value),
         }
@@ -1155,6 +1389,51 @@ impl Interpret {
                     }
                 }
                 last_val
+            }
+            Statment::ClassStatement(name_token, methods, superclass_token) => {
+                let class_name = name_token.text.clone();
+                let mut class_methods = std::collections::HashMap::new();
+                let parent_env = self.environment.clone();
+                for method_stmt in methods {
+                    // Handle both direct Function and Assign-wrapped Function (from fn declaration)
+                    let (method_name, params, body) = if let Statment::ExpressionStatement(Expression::Function(params, body)) = method_stmt {
+                        let method_name = params.first().cloned().unwrap_or_default();
+                        (method_name, params.clone(), body.clone())
+                    } else if let Statment::ExpressionStatement(Expression::Assign(name, expr)) = method_stmt {
+                        if let Expression::Function(params, body) = expr.as_ref() {
+                            (name.clone(), params.clone(), body.clone())
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        continue;
+                    };
+                    let capture = Rc::new(RefCell::new(Environment::with_parent(
+                        HashMap::new(),
+                        parent_env.clone(),
+                    )));
+                    let lox_function = LoxFunction {
+                        name: method_name.clone(),
+                        params: params.clone(),
+                        body: body.clone(),
+                        closure: capture,
+                        is_initializer: method_name == "init",
+                    };
+                    class_methods.insert(method_name, lox_function);
+                }
+                // Resolve superclass if present
+                let superclass = if let Some(super_token) = superclass_token {
+                    match self.environment.borrow().get(&super_token.text) {
+                        Some(DataTypes::Class(c)) => Some(c.clone()),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                // Create LoxClass and store in environment
+                let lox_class = Rc::new(LoxClass::new(class_name.clone(), class_methods, superclass));
+                self.environment.borrow_mut().define(class_name, DataTypes::Class(lox_class));
+                None
             }
         }
     }
@@ -1255,6 +1534,11 @@ impl ExpressionVisitor<String> for PrettyPrint {
     fn visit_super(&mut self, method: &str) -> String {
         format!("(super.{})", method)
     }
+
+    fn visit_super_call(&mut self, method: &str, args: &[Expression]) -> String {
+        let arg_strs: Vec<String> = args.iter().map(|a| self.visit_expr(a.clone())).collect();
+        format!("(super.{}.{})", method, arg_strs.join(" "))
+    }
 }
 
 impl PrettyPrint {
@@ -1273,6 +1557,7 @@ impl PrettyPrint {
             Expression::Set(object, name, value) => self.visit_set(&object, &name, &value),
             Expression::This => self.visit_this(),
             Expression::Super(method) => self.visit_super(&method),
+            Expression::SuperCall(method, args) => self.visit_super_call(&method, &args),
             Expression::Function(params, body) => self.visit_function(&params, &body),
             Expression::Return(value) => self.visit_return(&value),
         }
@@ -1292,6 +1577,7 @@ pub enum Statment {
         Box<Statment>,
     ), // init, condition, increment, body
     BlockStatement(Vec<Statment>), // For indented blocks with multiple statements
+    ClassStatement(Token, Vec<Statment>, Option<Token>), // name, methods, superclass
 }
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
@@ -1309,16 +1595,23 @@ impl Parser {
         while self.check(TokenType::NEWLINE) {
             self.advance();
         }
+        // Skip any leading DEDENT tokens at top level
+        while self.check(TokenType::DEDENT) {
+            self.advance();
+        }
         while self
             .tokens
             .peek()
             .is_some_and(|t| t.token_type != TokenType::EOF)
         {
+            // Skip any DEDENT tokens between statements at top level
+            while self.check(TokenType::DEDENT) {
+                self.advance();
+            }
             statements.push(self.statement()?);
         }
         Ok(statements)
     }
-
     fn statement(&mut self) -> Result<Statment, Errors> {
         // Skip newlines
         while self.check(TokenType::NEWLINE) {
@@ -1362,8 +1655,7 @@ impl Parser {
             // Expect INDENT
             self.consume(TokenType::INDENT, "Expect indented block after 'if'")?;
             let then_branch = Box::new(self.indented_block()?);
-            // Expect DEDENT
-            self.consume(TokenType::DEDENT, "Expect dedent after if block")?;
+            // indented_block() already consumes the DEDENT
             
             // Consume NEWLINE before else
             while self.check(TokenType::NEWLINE) {
@@ -1378,8 +1670,7 @@ impl Parser {
                 // Expect INDENT
                 self.consume(TokenType::INDENT, "Expect indented block after 'else'")?;
                 let else_block = Box::new(self.indented_block()?);
-                // Expect DEDENT
-                self.consume(TokenType::DEDENT, "Expect dedent after else block")?;
+                // indented_block() already consumes the DEDENT
                 Some(else_block)
             } else {
                 None
@@ -1395,8 +1686,7 @@ impl Parser {
             // Expect INDENT
             self.consume(TokenType::INDENT, "Expect indented block after 'while'")?;
             let body = Box::new(self.indented_block()?);
-            // Expect DEDENT
-            self.consume(TokenType::DEDENT, "Expect dedent after while block")?;
+            // indented_block() already consumes the DEDENT
             return Ok(Statment::WhileStatement(condition, body));
         }
         if self.match_token(TokenType::FOR) {
@@ -1445,8 +1735,7 @@ impl Parser {
             // Expect INDENT
             self.consume(TokenType::INDENT, "Expect indented block after 'for'")?;
             let body = Box::new(self.indented_block()?);
-            // Expect DEDENT
-            self.consume(TokenType::DEDENT, "Expect dedent after for block")?;
+            // indented_block() already consumes the DEDENT
             return Ok(Statment::ForStatement(init, condition, increment, body));
         }
         if self.match_token(TokenType::RETURN) {
@@ -1468,27 +1757,46 @@ impl Parser {
         if self.match_token(TokenType::FN) {
             // Function declaration: fn name(params) { body } or fn name(params) => expr
             let name_token = self.consume(TokenType::IDENTIFIER, "Expect function name")?;
-            let func_expr = self.function_literal()?;
+            let func_name = name_token.text.clone();
+            let func_expr = self.function_literal(Some(name_token))?;
             // Store function in environment with name
-            let assign_expr = Expression::Assign(name_token.text, Box::new(func_expr));
+            let assign_expr = Expression::Assign(func_name, Box::new(func_expr));
             // Consume optional newline
             while self.check(TokenType::NEWLINE) {
                 self.advance();
             }
             return Ok(Statment::ExpressionStatement(assign_expr));
         }
-        // Debug: print unknown token
-        if let Some(tok) = self.tokens.peek() {
-            eprintln!("DEBUG statement: unknown token {:?}", tok.token_type);
+        if self.match_token(TokenType::CLASS) {
+            let name_token = self.consume(TokenType::IDENTIFIER, "Expect class name")?;
+            // Check for inheritance: class Derived < Base
+            let superclass = if self.match_token(TokenType::LESS) {
+                let superclass_name = self.consume(TokenType::IDENTIFIER, "Expect superclass name")?;
+                Some(superclass_name)
+            } else {
+                None
+            };
+            // Consume optional NEWLINE
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            // Expect INDENT
+            self.consume(TokenType::INDENT, "Expect indented block after class")?;
+            let methods_stmt = self.indented_block()?;
+            // indented_block() already consumes the DEDENT
+            // Extract statements from BlockStatement
+            let methods = match methods_stmt {
+                Statment::BlockStatement(stmts) => stmts,
+                _ => vec![],
+            };
+            return Ok(Statment::ClassStatement(name_token, methods, superclass));
         }
         let exp = self.expression()?;
-        // Consume optional newline
         while self.check(TokenType::NEWLINE) {
             self.advance();
         }
         Ok(Statment::ExpressionStatement(exp))
     }
-
     fn indented_block(&mut self) -> Result<Statment, Errors> {
         let mut statements = Vec::new();
         // Skip leading newlines
@@ -1497,6 +1805,10 @@ impl Parser {
         }
         while !self.check(TokenType::DEDENT) && !self.is_at_end() {
             statements.push(self.statement()?);
+        }
+        // Consume the single DEDENT for this block
+        if self.check(TokenType::DEDENT) {
+            self.advance();
         }
         Ok(Statment::BlockStatement(statements))
     }
@@ -1625,10 +1937,33 @@ impl Parser {
                 }
 
                 TokenType::FN => {
-                    return self.function_literal();
+                    return self.function_literal(None);
                 }
 
+                TokenType::THIS => {
+                    return Ok(Expression::This);
+                }
 
+                TokenType::SUPER => {
+                    self.consume(TokenType::DOT, "Expect '.' after 'super'")?;
+                    let method = self.consume(TokenType::IDENTIFIER, "Expect superclass method name")?;
+                    // Check if this is a method call: super.method()
+                    if self.check(TokenType::LeftPara) {
+                        self.consume(TokenType::LeftPara, "Expect '(' after method name")?;
+                        let mut args = Vec::new();
+                        if !self.check(TokenType::RightPara) {
+                            loop {
+                                args.push(self.expression()?);
+                                if !self.match_token(TokenType::COMMA) {
+                                    break;
+                                }
+                            }
+                        }
+                        self.consume(TokenType::RightPara, "Expect ')' after arguments")?;
+                        return Ok(Expression::SuperCall(method.text, args));
+                    }
+                    return Ok(Expression::Super(method.text));
+                }
                 TokenType::IDENTIFIER => {
                     // Check if this is a function call (identifier followed by '(')
                     let name = token.text.clone();
@@ -1647,7 +1982,7 @@ impl Parser {
                         self.consume(TokenType::RightPara, "Expect ')' after arguments")?;
                         expr = Expression::Call(name, args);
                     }
-                    // Handle index and get expressions
+                    // Handle index, get, and method call expressions
                     loop {
                         if self.match_token(TokenType::LeftBracket) {
                             let index = self.expression()?;
@@ -1656,14 +1991,32 @@ impl Parser {
                         } else if self.match_token(TokenType::DOT) {
                             let name_token = self
                                 .consume(TokenType::IDENTIFIER, "Expect property name after '.'")?;
-                            expr = Expression::Get(Box::new(expr), name_token.text);
+                            // Check if this is a method call
+                            if self.check(TokenType::LeftPara) {
+                                self.consume(TokenType::LeftPara, "Expect '(' after method name")?;
+                                let mut args = Vec::new();
+                                if !self.check(TokenType::RightPara) {
+                                    loop {
+                                        args.push(self.expression()?);
+                                        if !self.match_token(TokenType::COMMA) {
+                                            break;
+                                        }
+                                    }
+                                }
+                                self.consume(TokenType::RightPara, "Expect ')' after arguments")?;
+                                // Prepend the object as first argument for method call
+                                args.insert(0, expr);
+                                expr = Expression::Call(name_token.text, args);
+                            } else {
+                                // Just a property access
+                                expr = Expression::Get(Box::new(expr), name_token.text);
+                            }
                         } else {
                             break;
                         }
                     }
                     return Ok(expr);
                 }
-
                 TokenType::LeftPara => {
                     let exp = self.expression()?;
                     if let Some(_token) = self
@@ -1712,7 +2065,8 @@ impl Parser {
         Ok(Expression::Object(fields))
     }
 
-    fn function_literal(&mut self) -> Result<Expression, Errors> {
+    fn function_literal(&mut self, name_token: Option<Token>) -> Result<Expression, Errors> {
+        let name = name_token.map(|t| t.text);
         self.consume(TokenType::LeftPara, "Expect '(' after 'fn'")?;
         let mut params = Vec::new();
         if !self.check(TokenType::RightPara) {
@@ -1740,8 +2094,7 @@ impl Parser {
             }
             self.consume(TokenType::INDENT, "Expect indented block after function")?;
             let body = self.indented_block()?;
-            // Expect DEDENT
-            self.consume(TokenType::DEDENT, "Expect dedent after function body")?;
+            // indented_block() already consumes the DEDENT
             Ok(Expression::Function(params, Box::new(body)))
         }
     }
