@@ -1,5 +1,4 @@
-// Variable Resolver for pseudo-lang
-// Implements static scope resolution (Chapter 11, Crafting Interpreters)
+// Resolver for static scope analysis (Chapter 11, Crafting Interpreters)
 
 use crate::parser::{Expression, Statment};
 use std::collections::HashMap;
@@ -24,7 +23,7 @@ pub struct ResolverError {
 
 #[derive(Debug)]
 pub struct ResolverResult {
-    pub depths: HashMap<ExprId, usize>,  // expression ID -> scope depth (hops)
+    pub depths: HashMap<ExprId, usize>,
     pub errors: Vec<ResolverError>,
 }
 
@@ -126,7 +125,6 @@ impl Resolver {
             }
         }
         // Not found in any scope - global or undefined
-        // We'll treat it as global (depth 0) but report error if not in global scope
         if self.scopes.len() == 1 {
             // Global scope - allow but track
             self.depths.insert(expr_id, 0);
@@ -180,6 +178,23 @@ impl Resolver {
                 }
                 self.end_scope();
             }
+            Statment::ClassStatement(name_token, methods, _superclass_token) => {
+                self.declare(&name_token.text, name_token.span.start_line, name_token.span.start_col);
+                self.define(&name_token.text);
+                
+                self.begin_scope();
+                // Declare 'this' in class scope
+                self.declare("this", 0, 0);
+                self.define("this");
+                
+                // Resolve each method in method scope
+                for method in methods {
+                    if let Statment::ExpressionStatement(Expression::Function(params, body)) = method {
+                        self.resolve_function(params, body, ScopeType::Method);
+                    }
+                }
+                self.end_scope();
+            }
         }
     }
 
@@ -205,7 +220,6 @@ impl Resolver {
                 if token.token_type == crate::tokens::TokenType::IDENTIFIER {
                     self.resolve_local(expr_id, &token.text, token.span.start_line, token.span.start_col);
                 }
-                // Other literals (numbers, strings, etc.) don't need resolution
             }
             Expression::Grouping(expr) => {
                 let inner_id = self.next_id();
@@ -214,11 +228,9 @@ impl Resolver {
             Expression::Assign(name, value) => {
                 let value_id = self.next_id();
                 self.resolve_expression_inner(value, value_id);
-                // Variable use for assignment - resolve after value is resolved
                 self.resolve_local(expr_id, name, 0, 0);
             }
             Expression::Call(_name, args) => {
-                // Function call - resolve arguments
                 let mut arg_ids = Vec::new();
                 for _ in args {
                     arg_ids.push(self.next_id());
@@ -271,6 +283,19 @@ impl Resolver {
                         line: 0,
                         column: 0,
                     });
+                }
+            }
+            Expression::SuperCall(_method, args) => {
+                if self.current_class != Some(ScopeType::Class) {
+                    self.errors.push(ResolverError {
+                        message: "Cannot use 'super' outside of a class".to_string(),
+                        line: 0,
+                        column: 0,
+                    });
+                }
+                for arg in args {
+                    let arg_id = self.next_id();
+                    self.resolve_expression_inner(arg, arg_id);
                 }
             }
             Expression::Index(obj, idx) => {
