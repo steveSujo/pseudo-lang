@@ -1,4 +1,3 @@
-use std::ops::Range;
 
 use crate::{
     error_handler::Errors,
@@ -381,13 +380,6 @@ impl Lexer {
             self.add_token_with_literal(TokenType::NUMBER, Some(literal));
         }
         Ok(())
-    }
-    
-    fn peek_next(&self) -> Option<char> {
-        if self.current + 1 >= self.source.len() {
-            return None;
-        }
-        self.source.chars().nth(self.current + 1)
     }
     
     fn identifier(&mut self) {

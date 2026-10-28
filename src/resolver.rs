@@ -39,7 +39,6 @@ pub struct Resolver {
 #[derive(Debug, Clone)]
 struct ScopeInfo {
     initialized: bool,
-    depth: usize,
 }
 
 impl Resolver {
@@ -85,7 +84,6 @@ impl Resolver {
     }
 
     fn declare(&mut self, name: &str, line: usize, column: usize) {
-        let depth = self.scopes.len() - 1;
         if let Some(scope) = self.scopes.last_mut() {
             if scope.contains_key(name) {
                 self.errors.push(ResolverError {
@@ -94,7 +92,7 @@ impl Resolver {
                     column,
                 });
             } else {
-                scope.insert(name.to_string(), ScopeInfo { initialized: false, depth });
+                scope.insert(name.to_string(), ScopeInfo { initialized: false });
             }
         }
     }

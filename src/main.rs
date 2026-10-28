@@ -33,6 +33,7 @@ struct Config {
     run_lsp: bool,
     show_syntax: bool,
     check_borrows: bool,
+    parse_pir: bool,
 }
 
 fn main() {
@@ -74,6 +75,7 @@ fn main() {
             "-s" | "--syntax" => config.show_syntax = true,
             "-b" | "--check-borrows" => config.check_borrows = true,
             "--lsp" => config.run_lsp = true,
+            "--pir" => config.parse_pir = true,
             arg if arg.starts_with('-') => {
                 eprintln!("Error: Unknown argument '{}'", arg);
                 print_help();
@@ -145,6 +147,7 @@ Options:
   -s, --syntax       Show compressed syntax reference for LLM context
   -b, --check-borrows  Enable borrow checking (move/borrow validation)
       --lsp          Start Language Server Protocol server (stdin/stdout)
+      --pir          Parse input as pIR (Pseudo Intermediate Representation)
 
 Examples:
   {} -f scripts/hello.psudo
@@ -154,6 +157,9 @@ Examples:
         NAME, VERSION, NAME, NAME, NAME, NAME, NAME
     );
 }
+
+
+
 fn print_syntax() {
     let syntax = r#"psudo syntax (compressed):
 
@@ -258,32 +264,44 @@ fn run_source(source: &str, config: &Config) {
         return;
     }
 
-    let mut lexer = Lexer::new(source.to_owned());
-    let tokens = match lexer.scan_tokens() {
-        Ok(tokens) => tokens,
-        Err(e) => {
-            eprintln!("Lexer error: {}", e);
-            if !config.quiet {
-                println!("Attempting to parse anyway...");
+    let statements = if config.parse_pir {
+        // Use pIR parser
+        match psudo::pir_parser::parse_pir(source) {
+            Ok(stmts) => stmts,
+            Err(err) => {
+                eprintln!("pIR Parse error: {}", err);
+                process::exit(1);
             }
-            lexer.get_tokens()
         }
-    };
+    } else {
+        // Standard lexer/parser
+        let mut lexer = Lexer::new(source.to_owned());
+        let tokens = match lexer.scan_tokens() {
+            Ok(tokens) => tokens,
+            Err(e) => {
+                eprintln!("Lexer error: {}", e);
+                if !config.quiet {
+                    println!("Attempting to parse anyway...");
+                }
+                lexer.get_tokens()
+            }
+        };
 
-    if config.show_tokens && !config.quiet {
-        println!("🔤 Tokens:");
-        for token in &tokens {
-            println!("  {:?}", token);
+        if config.show_tokens && !config.quiet {
+            println!("🔤 Tokens:");
+            for token in &tokens {
+                println!("  {:?}", token);
+            }
+            println!();
         }
-        println!();
-    }
 
-    let mut parser = Parser::new(tokens);
-    let statements = match parser.parse() {
-        Ok(statements) => statements,
-        Err(err) => {
-            eprintln!("Parse error: {}", err);
-            process::exit(1);
+        let mut parser = Parser::new(tokens);
+        match parser.parse() {
+            Ok(statements) => statements,
+            Err(err) => {
+                eprintln!("Parse error: {}", err);
+                process::exit(1);
+            }
         }
     };
     

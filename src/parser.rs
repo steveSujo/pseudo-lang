@@ -408,7 +408,7 @@ impl CheckedInterpret {
                 env.pop_scope();
                 last_val
             }
-            Statment::ClassStatement(name_token, methods, superclass) => {
+            Statment::ClassStatement(name_token, methods, _superclass) => {
                 let class_name = name_token.text.clone();
                 let mut class_methods = std::collections::HashMap::new();
                 // Convert CheckedEnvironment to regular Environment for closure capture
@@ -589,7 +589,7 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
                             .unwrap_or(DataTypes::Number(0.0));
                         return instance;
                     }
-                    return instance;
+                    instance
                 }
                 DataTypes::Function {
                     params,
@@ -854,34 +854,28 @@ impl ExpressionVisitor<DataTypes> for Interpret {
         if !arg_vals.is_empty() {
             if let DataTypes::Instance(instance) = &arg_vals[0] {
                 // Look up method on instance
-                if let Some(method) = instance.get(name) {
-                    if let DataTypes::Function {
-                        params,
-                        body,
-                        capture,
-                    } = method
-                    {
-                        // Bind 'this' to the instance
-                        let mut new_env = Environment::with_parent(HashMap::new(), capture.clone());
-                        // First param is 'this' (or implicit receiver)
-                        // The parser already prepends the instance as first arg
-                        for (i, param) in params.iter().enumerate() {
-                            if i < arg_vals.len() {
-                                new_env.define(param.clone(), arg_vals[i].clone());
-                            }
+                if let Some(DataTypes::Function {
+                    params,
+                    body,
+                    capture,
+                }) = instance.get(name)
+                {
+                    // Bind 'this' to the instance
+                    let mut new_env = Environment::with_parent(HashMap::new(), capture.clone());
+                    // First param is 'this' (or implicit receiver)
+                    // The parser already prepends the instance as first arg
+                    for (i, param) in params.iter().enumerate() {
+                        if i < arg_vals.len() {
+                            new_env.define(param.clone(), arg_vals[i].clone());
                         }
-                        let old_env = self.environment.clone();
-                        self.environment = Rc::new(RefCell::new(new_env));
-                        let result = self.execute(&body);
-                        self.environment = old_env;
-                        return result.unwrap_or(DataTypes::Number(0.0));
                     }
+                    let old_env = self.environment.clone();
+                    self.environment = Rc::new(RefCell::new(new_env));
+                    let result = self.execute(&body);
+                    self.environment = old_env;
+                    return result.unwrap_or(DataTypes::Number(0.0));
                 }
             }
-        }
-        if let Some(DataTypes::Instance(_instance)) = self.environment.borrow().get(name) {
-            // This is an instance variable, not a function
-            // Fall through to method call handling via Get/Call combination
         }
         // Check for user-defined function in environment
         let func_data = self.environment.borrow().get(name);
@@ -2068,7 +2062,7 @@ impl Parser {
     }
 
     fn function_literal(&mut self, name_token: Option<Token>) -> Result<Expression, Errors> {
-        let name = name_token.map(|t| t.text);
+        let _name = name_token.map(|t| t.text);
         self.consume(TokenType::LeftPara, "Expect '(' after 'fn'")?;
         let mut params = Vec::new();
         if !self.check(TokenType::RightPara) {

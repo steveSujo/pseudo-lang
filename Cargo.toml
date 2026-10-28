@@ -1,8 +1,7 @@
 [package]
 name = "psudo"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
-
 [dependencies]
 tower-lsp = "0.20"
 tokio = { version = "1", features = ["full"] }

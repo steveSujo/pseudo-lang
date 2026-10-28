@@ -5,10 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-10-28
 
 ### Added
-- Classes and Inheritance support (Phase 2)
+- pIR (Pseudo Intermediate Representation) parser (`src/pir_parser.rs`)
+  - Hyper-compressed, LLM-optimized bytecode-style text format with single-character opcodes (`v`, `=`, `p`, `?`, `w`, `f`, `r`, `c`, `m`)
+  - Strict prefix (Polish) notation for expressions: `(+ a b)`, `(> x 0)`, `(add 2 3)`
+  - Bracketed scoping `[...]` and space-delimited arguments
+  - Builtin abbreviations (`@rd`, `@wt`, `@ls`, `@ex`, `@if`, `@id`, `@mk`)
+  - CLI integration with `--pir` flag and `scripts/hello.pir` verification test suite
+  - 100% unit and integration test coverage (7/7 unit tests passing, full test suite passing)
   - `class Name` with method definitions
   - `class Derived < Base` inheritance syntax
   - `super.method()` calls
