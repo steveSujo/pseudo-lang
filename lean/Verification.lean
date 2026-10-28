@@ -123,16 +123,13 @@ theorem print_evals_expr (e : Expr) (v : Value) :
   sorry
 
 /-- Prove that if-then executes the then branch when condition is true -/
-theorem if_true_executes_then (thenBranch elseBranch : Stmt) :
+theorem if_true_executes_then (thenBranch : Stmt) (elseBranch : Option Stmt) :
     execStmt emptyState (Stmt.IfStmt (Expr.Literal { tokenType := TokenType.True, text := "true", literal := none, line := 1 }) thenBranch elseBranch) = execStmt emptyState thenBranch := by
   sorry
 
-/-- Prove that if-then-else executes the else branch when condition is false -/
 theorem if_false_executes_else (thenBranch elseBranch : Stmt) :
     execStmt emptyState (Stmt.IfStmt (Expr.Literal { tokenType := TokenType.False, text := "false", literal := none, line := 1 }) thenBranch (some elseBranch)) = execStmt emptyState elseBranch := by
   sorry
-
-/-- Prove truthiness cases for all value types -/
 theorem truthiness_cases :
     isTruthy Value.Nil = false ∧
     isTruthy (Value.Bool false) = false ∧
