@@ -1,4 +1,9 @@
-// Objects test
+// === Objects Tests ===
+// Tests: object literals, property access (dot and bracket), keys(), values(), has()
+//       nested object access
+// Expected: all object operations work correctly
+// No resolver errors expected
+
 let o = { name: "test", value: 42 }
 print o.name      // "test"
 print o["value"]  // 42

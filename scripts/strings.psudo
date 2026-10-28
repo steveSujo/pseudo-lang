@@ -1,3 +1,8 @@
+// === String Tests ===
+// Tests: string concatenation (+), string + number concatenation, variable interpolation
+// Expected: all string operations work, "str" + num -> "strnum"
+// No resolver errors expected
+
 print "=== String Tests ==="
 
 print "hello" + " " + "world"

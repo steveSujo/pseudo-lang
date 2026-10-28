@@ -1,4 +1,9 @@
-// Arrays test
+// === Arrays Tests ===
+// Tests: array literals, indexing, len(), push(), pop(), slice()
+//       string len(), object len()
+// Expected: all array operations work, original arrays unchanged by push/pop/slice
+// No resolver errors expected
+
 let a = [1, 2, 3]
 print a[0]        // 1
 print len(a)      // 3

@@ -1,40 +1,46 @@
-print "=== Filesystem Tests ===";
+// === Filesystem Tests ===
+// Tests: writeFile, readFile, listDir, exists, isFile, mkdir, isDir
+// All operations confined to ./sandbox/ directory
+// Expected: all file operations succeed within sandbox, permission denied for outside access
+// No resolver errors expected
 
-print "Testing writeFile...";
-let result = writeFile("test.txt", "Hello from pseudo-lang!");
-print result;
+print "=== Filesystem Tests ==="
 
-print "Testing readFile...";
-let content = readFile("test.txt");
-print content;
+print "Testing writeFile..."
+let result = writeFile("test.txt", "Hello from pseudo-lang!")
+print result
 
-print "Testing listDir...";
-let files = listDir(".");
-print files;
+print "Testing readFile..."
+let content = readFile("test.txt")
+print content
 
-print "Testing exists...";
-print exists("test.txt");
-print exists("nonexistent.txt");
+print "Testing listDir..."
+let files = listDir(".")
+print files
 
-print "Testing isFile...";
-print isFile("test.txt");
+print "Testing exists..."
+print exists("test.txt")
+print exists("nonexistent.txt")
 
-print "Testing mkdir...";
-let mk_result = mkdir("subdir");
-print mk_result;
+print "Testing isFile..."
+print isFile("test.txt")
 
-print "Testing listDir with subdir...";
-let files2 = listDir("subdir");
-print files2;
+print "Testing mkdir..."
+let mk_result = mkdir("subdir")
+print mk_result
 
-print "Testing isDir...";
-print isDir("subdir");
-print isDir("test.txt");
+print "Testing listDir with subdir..."
+let files2 = listDir("subdir")
+print files2
 
-print "Testing writeFile to subdir...";
-let result2 = writeFile("subdir/nested.txt", "Nested file content");
-print result2;
-let nested_content = readFile("subdir/nested.txt");
-print nested_content;
+print "Testing isDir..."
+print isDir("subdir")
+print isDir("test.txt")
 
-print "=== All FS Tests Complete ===";
+print "Testing writeFile to subdir..."
+let result2 = writeFile("subdir/nested.txt", "Nested file content")
+print result2
+let nested_content = readFile("subdir/nested.txt")
+print nested_content
+
+print "=== All FS Tests Complete ==="

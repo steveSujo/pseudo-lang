@@ -1,3 +1,8 @@
+// === Variable Tests ===
+// Tests: variable declaration (let), reassignment, string/number variables, multiple vars
+// Expected: all variable operations work, reassignment allowed
+// No resolver errors expected
+
 print "=== Variable Tests ==="
 
 let x = 10

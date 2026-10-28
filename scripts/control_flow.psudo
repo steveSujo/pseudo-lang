@@ -1,3 +1,8 @@
+// === Control Flow Tests ===
+// Tests: if/else, while, for loops, nested loops
+// Expected: all control flow constructs work correctly
+// Resolver errors expected: for-loop variables (j, a, b) not accessible outside loop scope (correct Lox semantics)
+
 print "=== Control Flow Tests ==="
 
 print "--- if/else ---"

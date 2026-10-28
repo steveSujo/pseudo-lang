@@ -1,2 +1,7 @@
+// === Hello World ===
+// Tests: basic print statements, string literals
+// Expected: prints greeting messages
+// No resolver errors expected
+
 print "Hello, pseudo-lang!"
 print "Welcome to the Lox-inspired interpreter."

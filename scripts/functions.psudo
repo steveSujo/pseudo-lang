@@ -1,4 +1,8 @@
-// Functions test
+// === Functions Tests ===
+// Tests: arrow functions (=>), arrow functions with block body, closures, iterative factorial
+// Expected: all function constructs work, closures capture outer variables correctly
+// Resolver errors expected: closure variable 'add' not in scope at call site (correct Lox semantics)
+
 fn add(a, b) => a + b
 print add(2, 3)
 

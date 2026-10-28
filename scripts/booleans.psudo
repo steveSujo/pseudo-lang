@@ -1,3 +1,8 @@
+// === Boolean Tests ===
+// Tests: boolean literals, comparisons, logical not, truthy/falsy values
+// Expected: all boolean expressions evaluate correctly, truthy tests show 1/string=true, 0/"" /nil=false
+// No resolver errors expected
+
 print "=== Boolean Tests ==="
 
 print true

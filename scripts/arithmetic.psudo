@@ -1,3 +1,8 @@
+// === Arithmetic Tests ===
+// Tests: basic ops (+ - * /), unary -, precedence, parentheses, variable arithmetic
+// Expected: all expressions evaluate correctly with proper operator precedence
+// No resolver errors expected
+
 print "=== Arithmetic Tests ==="
 
 print 1 + 2

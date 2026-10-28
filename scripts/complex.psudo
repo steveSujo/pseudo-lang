@@ -1,3 +1,8 @@
+// === Complex Expressions Tests ===
+// Tests: complex arithmetic with grouping, chained comparisons, unary + binary, string + number concat
+// Expected: all expressions evaluate with correct precedence and associativity
+// No resolver errors expected
+
 print "=== Complex Expressions ==="
 
 print (1 + 2) * (3 + 4)

@@ -1,3 +1,8 @@
+// === Block Scope Tests ===
+// Tests: block scoping with indentation, variable shadowing, nested blocks
+// Expected: inner variables don't leak, outer variables accessible in inner blocks
+// No resolver errors expected
+
 print "=== Block Scope Tests ==="
 
 let x = 1
