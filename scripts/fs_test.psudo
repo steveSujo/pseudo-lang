@@ -1,45 +1,36 @@
 print "=== Filesystem Tests ===";
 
-// Initialize sandbox
 print "Testing writeFile...";
 let result = writeFile("test.txt", "Hello from pseudo-lang!");
 print result;
 
-// Test readFile
 print "Testing readFile...";
 let content = readFile("test.txt");
 print content;
 
-// Test listDir
 print "Testing listDir...";
 let files = listDir(".");
 print files;
 
-// Test exists
 print "Testing exists...";
 print exists("test.txt");
 print exists("nonexistent.txt");
 
-// Test isFile
 print "Testing isFile...";
 print isFile("test.txt");
 
-// Test mkdir
 print "Testing mkdir...";
 let mk_result = mkdir("subdir");
 print mk_result;
 
-// Test listDir with subdir
 print "Testing listDir with subdir...";
 let files2 = listDir("subdir");
 print files2;
 
-// Test isDir
 print "Testing isDir...";
 print isDir("subdir");
 print isDir("test.txt");
 
-// Test writeFile to subdir
 print "Testing writeFile to subdir...";
 let result2 = writeFile("subdir/nested.txt", "Nested file content");
 print result2;

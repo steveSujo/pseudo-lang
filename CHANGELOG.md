@@ -7,15 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Classes and Inheritance support (Phase 2)
+  - `class Name` with method definitions
+  - `class Derived < Base` inheritance syntax
+  - `super.method()` calls
+  - `LoxClass`, `LoxInstance`, `LoxFunction` runtime support
+  - Method binding with `this` reference
+- Resolver with LSP Integration (Phase 1)
+  - Static scope analysis with `src/resolver.rs`
+  - Variable resolution with depth tracking
+  - LSP diagnostics for undefined variables, duplicate declarations, use-before-init
+  - Real-time diagnostics on `did_open` and `did_change`
+- String + number concatenation: `"str" + num` -> `"strnum"`
+- `fn name(params) =>` syntax with indented block body support
+- Classes and methods in LSP (completions, hover, semantic tokens)
+
 ### Changed
+- **Breaking**: Whitespace & Punctuation Diet grammar (indentation-based blocks)
+  - Removed `;`, `{`, `}`, `:` syntax
+  - Python-style indentation blocks
+  - Keywords: `let`, `fn`, `class`, `if`, `else`, `while`, `for`, `return`, `super`, `this`
 - **Breaking**: Cranelift codegen deferred due to API incompatibility with cranelift 0.109
   - `CodegenContext::new`, `compile_program`, `emit_object` now `todo!()` 
   - Codegen tests marked `#[ignore]`
   - TargetSpec architecture matching fixed for target_lexicon 0.12
   - Migration needed for cranelift-native, cranelift-object, target-lexicon APIs
+- Updated built-in function names to camelCase: `readFile`, `writeFile`, `listDir`, `exists`, `isFile`, `isDir`, `mkdir`, `len`, `push`, `pop`, `slice`, `keys`, `values`, `has`, `str`, `num`, `bool`, `clock`
+- String concatenation now supports `"str" + num` and `num + "str"`
+
+### Fixed
+- Parser error recovery for multiple statements after class definitions
+- Indentation handling for blank lines
+- Function declaration parsing with `=>` and indented block body
+- Variable resolution in class methods and closures
+- Recursive function support via closure capture
+
+## [0.4.0] - 2024-10-28
 
 ### Added
-- Phase 2: Cranelift x86_64 Linux codegen backend (planned)
+- Phase 3: Classes and Inheritance with LSP support
+- Phase 2: Resolver and LSP Integration
+- Phase 1: Whitespace & Punctuation Diet grammar changes
+- Classes: `class Name`, methods with `fn`, `this` reference
+- Inheritance: `class Derived < Base`, `super.method()` calls
+- Resolver: Static scope analysis, LSP diagnostics
+- LSP: OOP completions, hover, semantic tokens
+- String + number concatenation
+- `fn name(params) =>` with indented block body
+- Built-in functions in camelCase
+
+### Changed
+- **Breaking**: Indentation-based blocks (Python-style), removed `;`, `{`, `}`, `:`
+- **Breaking**: Removed Cranelift codegen (deferred)
+- Built-in function names: camelCase (`readFile`, `writeFile`, `listDir`, `len`, etc.)
+
+## [0.3.0] - 2024-10-27
 
 ### Added
 - Phase 1: Ownership IR and Borrow Checker implementation

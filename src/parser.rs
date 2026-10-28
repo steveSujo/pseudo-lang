@@ -733,6 +733,8 @@ impl ExpressionVisitor<DataTypes> for Interpret {
             TokenType::PLUS => match (&left_val, &right_val) {
                 (DataTypes::Number(a), DataTypes::Number(b)) => (a + b).into(),
                 (DataTypes::Str(a), DataTypes::Str(b)) => DataTypes::Str(format!("{}{}", a, b)),
+                (DataTypes::Str(a), DataTypes::Number(b)) => DataTypes::Str(format!("{}{}", a, b)),
+                (DataTypes::Number(a), DataTypes::Str(b)) => DataTypes::Str(format!("{}{}", a, b)),
                 _ => unimplemented!("PLUS not supported for these types"),
             },
             TokenType::SLASH => bin_expr::<f32>(left_val, right_val, |a, b| a / b),
@@ -2082,10 +2084,23 @@ impl Parser {
 
         // Check for expression body (=>) or block body
         if self.match_token(TokenType::ARROW) {
-            // Expression body
-            let expr = self.expression()?;
-            let body = Statment::ExpressionStatement(expr);
-            Ok(Expression::Function(params, Box::new(body)))
+            // Consume optional NEWLINE before checking for INDENT
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            // Check if next token is INDENT (block body) or expression
+            if self.check(TokenType::INDENT) {
+                // Block body after =>
+                self.consume(TokenType::INDENT, "Expect indented block after function")?;
+                let body = self.indented_block()?;
+                // indented_block() already consumes the DEDENT
+                Ok(Expression::Function(params, Box::new(body)))
+            } else {
+                // Expression body
+                let expr = self.expression()?;
+                let body = Statment::ExpressionStatement(expr);
+                Ok(Expression::Function(params, Box::new(body)))
+            }
         } else {
             // Block body - expect INDENT
             // Consume optional NEWLINE

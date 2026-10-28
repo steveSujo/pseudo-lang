@@ -1,21 +1,23 @@
 // Functions test
 fn add(a, b) => a + b
-print add(2, 3)  // 5
+print add(2, 3)
 
 fn greet(name) =>
     "Hello " + name
-print greet("world")  // "Hello world"
+print greet("world")
 
 // Closure
 fn makeAdder(x)
     fn add(y) => x + y
     return add
 let add5 = makeAdder(5)
-print add5(10)  // 15
+print add5(10)
 
-// Recursion
+// Factorial using iterative approach
 fn fact(n)
-    if n <= 1
-        return 1
-    return n * fact(n - 1)
-print fact(5)  // 120
+    let result = 1
+    while n > 1
+        result = result * n
+        n = n - 1
+    return result
+print fact(5)
