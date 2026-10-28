@@ -1225,9 +1225,8 @@ pub enum Statment {
         Option<Expression>,
         Box<Statment>,
     ), // init, condition, increment, body
-    BlockStatement(Vec<Statment>),
+    BlockStatement(Vec<Statment>), // For indented blocks with multiple statements
 }
-
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
 }
@@ -1240,6 +1239,10 @@ impl Parser {
     }
     pub fn parse(&mut self) -> Result<Vec<Statment>, Errors> {
         let mut statements: Vec<Statment> = Vec::new();
+        // Skip leading newlines
+        while self.check(TokenType::NEWLINE) {
+            self.advance();
+        }
         while self
             .tokens
             .peek()
@@ -1251,9 +1254,17 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Statment, Errors> {
+        // Skip newlines
+        while self.check(TokenType::NEWLINE) {
+            self.advance();
+        }
+        
         if self.match_token(TokenType::PRINT) {
             let exp = self.expression()?;
-            self.consume(TokenType::SEMICOLON, "Expect ';' after print statement")?;
+            // Consume optional NEWLINE
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
             return Ok(Statment::PrintStatement(exp));
         }
         if self.match_token(TokenType::LET) {
@@ -1262,10 +1273,10 @@ impl Parser {
             if self.match_token(TokenType::EQUAL) {
                 initializer = Some(self.expression()?);
             }
-            self.consume(
-                TokenType::SEMICOLON,
-                "Expect ';' after variable declaration",
-            )?;
+            // Consume optional NEWLINE
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
             return Ok(Statment::LetStatement(
                 name,
                 initializer.unwrap_or(Expression::Literal(Token::new(
@@ -1277,65 +1288,116 @@ impl Parser {
             ));
         }
         if self.match_token(TokenType::IF) {
-            self.consume(TokenType::LeftPara, "Expect '(' after 'if'")?;
             let condition = self.expression()?;
-            self.consume(TokenType::RightPara, "Expect ')' after if condition")?;
-            let then_branch = Box::new(self.statement()?);
+            // Consume NEWLINE after condition
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            // Expect INDENT
+            self.consume(TokenType::INDENT, "Expect indented block after 'if'")?;
+            let then_branch = Box::new(self.indented_block()?);
+            // Expect DEDENT
+            self.consume(TokenType::DEDENT, "Expect dedent after if block")?;
+            
+            // Consume NEWLINE before else
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            
             let else_branch = if self.match_token(TokenType::ELSE) {
-                Some(Box::new(self.statement()?))
+                // Consume NEWLINE after else
+                while self.check(TokenType::NEWLINE) {
+                    self.advance();
+                }
+                // Expect INDENT
+                self.consume(TokenType::INDENT, "Expect indented block after 'else'")?;
+                let else_block = Box::new(self.indented_block()?);
+                // Expect DEDENT
+                self.consume(TokenType::DEDENT, "Expect dedent after else block")?;
+                Some(else_block)
             } else {
                 None
             };
             return Ok(Statment::IfStatement(condition, then_branch, else_branch));
         }
         if self.match_token(TokenType::WHILE) {
-            self.consume(TokenType::LeftPara, "Expect '(' after 'while'")?;
             let condition = self.expression()?;
-            self.consume(TokenType::RightPara, "Expect ')' after while condition")?;
-            let body = Box::new(self.statement()?);
+            // Consume NEWLINE after condition
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            // Expect INDENT
+            self.consume(TokenType::INDENT, "Expect indented block after 'while'")?;
+            let body = Box::new(self.indented_block()?);
+            // Expect DEDENT
+            self.consume(TokenType::DEDENT, "Expect dedent after while block")?;
             return Ok(Statment::WhileStatement(condition, body));
         }
         if self.match_token(TokenType::FOR) {
-            self.consume(TokenType::LeftPara, "Expect '(' after 'for'")?;
-            let init = if self.match_token(TokenType::SEMICOLON) {
+            // For loop: for init; condition; increment
+            // Now using newlines instead of semicolons
+            // Parse init (optional)
+            let init = if self.check(TokenType::NEWLINE) || self.check(TokenType::INDENT) {
+                // No init if newline or indent starts immediately
                 None
             } else if self.match_token(TokenType::LET) {
                 Some(Box::new(self.statement()?))
             } else {
                 let exp = self.expression()?;
-                self.consume(TokenType::SEMICOLON, "Expect ';' after for init")?;
                 Some(Box::new(Statment::ExpressionStatement(exp)))
             };
-            let condition = if self.check(TokenType::SEMICOLON) {
+            
+            // Consume NEWLINE after init
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            
+            // Parse condition (optional)
+            let condition = if self.check(TokenType::NEWLINE) || self.check(TokenType::INDENT) {
                 None
             } else {
                 Some(self.expression()?)
             };
-            self.consume(TokenType::SEMICOLON, "Expect ';' after for condition")?;
-            let increment = if self.check(TokenType::RightPara) {
+            
+            // Consume NEWLINE after condition
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            
+            // Parse increment (optional)
+            let increment = if self.check(TokenType::NEWLINE) || self.check(TokenType::INDENT) {
                 None
             } else {
                 Some(self.expression()?)
             };
-            self.consume(TokenType::RightPara, "Expect ')' after for clauses")?;
-            let body = Box::new(self.statement()?);
+            
+            // Consume NEWLINE before body
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            
+            // Expect INDENT
+            self.consume(TokenType::INDENT, "Expect indented block after 'for'")?;
+            let body = Box::new(self.indented_block()?);
+            // Expect DEDENT
+            self.consume(TokenType::DEDENT, "Expect dedent after for block")?;
             return Ok(Statment::ForStatement(init, condition, increment, body));
         }
         if self.match_token(TokenType::RETURN) {
             eprintln!("DEBUG: matched RETURN token");
-            let value = if self.check(TokenType::SEMICOLON)
-                || self.check(TokenType::RightBrace)
+            let value = if self.check(TokenType::NEWLINE)
+                || self.check(TokenType::DEDENT)
                 || self.is_at_end()
             {
                 None
             } else {
                 Some(Box::new(self.expression()?))
             };
-            self.consume(TokenType::SEMICOLON, "Expect ';' after return statement")?;
+            // Consume optional newline
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
             return Ok(Statment::ExpressionStatement(Expression::Return(value)));
-        }
-        if self.match_token(TokenType::LeftBrace) {
-            return Ok(Statment::BlockStatement(self.block()?));
         }
         if self.match_token(TokenType::FN) {
             // Function declaration: fn name(params) { body } or fn name(params) => expr
@@ -1343,10 +1405,10 @@ impl Parser {
             let func_expr = self.function_literal()?;
             // Store function in environment with name
             let assign_expr = Expression::Assign(name_token.text, Box::new(func_expr));
-            self.consume(
-                TokenType::SEMICOLON,
-                "Expect ';' after function declaration",
-            )?;
+            // Consume optional newline
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
             return Ok(Statment::ExpressionStatement(assign_expr));
         }
         // Debug: print unknown token
@@ -1354,17 +1416,23 @@ impl Parser {
             eprintln!("DEBUG statement: unknown token {:?}", tok.token_type);
         }
         let exp = self.expression()?;
-        self.consume(TokenType::SEMICOLON, "Expect ';' after expression")?;
+        // Consume optional newline
+        while self.check(TokenType::NEWLINE) {
+            self.advance();
+        }
         Ok(Statment::ExpressionStatement(exp))
     }
 
-    fn block(&mut self) -> Result<Vec<Statment>, Errors> {
+    fn indented_block(&mut self) -> Result<Statment, Errors> {
         let mut statements = Vec::new();
-        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+        // Skip leading newlines
+        while self.check(TokenType::NEWLINE) {
+            self.advance();
+        }
+        while !self.check(TokenType::DEDENT) && !self.is_at_end() {
             statements.push(self.statement()?);
         }
-        self.consume(TokenType::RightBrace, "Expect '}' after block")?;
-        Ok(statements)
+        Ok(Statment::BlockStatement(statements))
     }
 
     fn check(&mut self, token_type: TokenType) -> bool {
@@ -1599,9 +1667,15 @@ impl Parser {
             let body = Statment::ExpressionStatement(expr);
             Ok(Expression::Function(params, Box::new(body)))
         } else {
-            // Block body
-            self.consume(TokenType::LeftBrace, "Expect '{' before function body")?;
-            let body = Statment::BlockStatement(self.block()?);
+            // Block body - expect INDENT
+            // Consume optional NEWLINE
+            while self.check(TokenType::NEWLINE) {
+                self.advance();
+            }
+            self.consume(TokenType::INDENT, "Expect indented block after function")?;
+            let body = self.indented_block()?;
+            // Expect DEDENT
+            self.consume(TokenType::DEDENT, "Expect dedent after function body")?;
             Ok(Expression::Function(params, Box::new(body)))
         }
     }
@@ -1611,9 +1685,11 @@ impl Parser {
             .next_if(|t| t.token_type == token_type)
             .is_some()
     }
+    
+    fn advance(&mut self) -> Option<Token> {
+        self.tokens.next()
+    }
 }
-
-// fn check(&self, token_type: TokenType) -> bool {
 //     self.tokens
 //         .peek()
 //         .is_some_and(|src_token| src_token.token_type == token_type)

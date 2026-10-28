@@ -1,2 +1,2 @@
-print "Hello, pseudo-lang!";
-print "Welcome to the Lox-inspired interpreter.";
+print "Hello, pseudo-lang!"
+print "Welcome to the Lox-inspired interpreter."

@@ -41,7 +41,6 @@ pub mod tokens {
         DOT,
         MINUS,
         PLUS,
-        SEMICOLON,
         SLASH,
         STAR,
 
@@ -75,6 +74,11 @@ pub mod tokens {
         WHILE,
 
         ARROW,
+
+        // Indentation-based block structure
+        NEWLINE,
+        INDENT,
+        DEDENT,
 
         EOF,
     }

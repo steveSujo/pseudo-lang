@@ -1,14 +1,14 @@
-print "=== String Tests ===";
+print "=== String Tests ==="
 
-print "hello" + " " + "world";
-print "test" + "ing";
+print "hello" + " " + "world"
+print "test" + "ing"
 
-let a = "foo";
-let b = "bar";
-print a + b;
+let a = "foo"
+let b = "bar"
+print a + b
 
-print "a" + "b" + "c";
+print "a" + "b" + "c"
 
-let greeting = "Hello";
-let name = "World";
-print greeting + ", " + name + "!";
+let greeting = "Hello"
+let name = "World"
+print greeting + ", " + name + "!"

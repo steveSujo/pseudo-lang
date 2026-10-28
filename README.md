@@ -4,14 +4,14 @@ A Rust implementation of the Lox language from "Crafting Interpreters" with a Le
 
 ## Features
 
-- **Variables**: `let x = 10;`, `x = x + 1;`
-- **Control flow**: `if/else`, `while`, `for` loops with blocks `{ ... }`
+- **Variables**: `let x = 10`, `x = x + 1`
+- **Control flow**: `if/else`, `while`, `for` loops with indentation blocks
 - **Data types**: Numbers (f32), Booleans, Strings, Nil
 - **Operators**: Arithmetic (+, -, *, /), Comparison (==, !=, <, >, <=, >=), Logical (!)
 - **String concatenation**: `"a" + "b"` → `"ab"`
-- **Print statements**: `print expression;`
-- **REPL**: Interactive mode with `cargo run -- -i`
-- **LSP Server**: `cargo run -- --lsp` — hover, completion, diagnostics, semantic tokens
+- **Print statements**: `print expression`
+- **REPL**: Interactive mode with `./target/release/psudo -i`
+- **LSP Server**: `./target/release/psudo --lsp` — hover, completion, diagnostics, semantic tokens
 
 ## Quick Start
 
@@ -48,21 +48,21 @@ scripts/run_all.bat
 
 ## Example
 
-```lox
-let x = 10;
-let y = 5;
-print x + y;        // 15
-print x * y;        // 50
+```psudo
+let x = 10
+let y = 5
+print x + y        // 15
+print x * y        // 50
 
-if (x > y) {
-    print "x is greater";
-} else {
-    print "y is greater";
-}
+if x > y
+    print "x is greater"
+else
+    print "y is greater"
 
-for (let i = 0; i < 3; i = i + 1) {
-    print i;
-}
+for let i = 0
+i < 3
+i = i + 1
+    print i
 ```
 
 ## Project Structure
@@ -188,14 +188,14 @@ cd lean && lake build
 | Lowest     | `=` (assignment) | Right |
 
 ### Statements
-- `print expr;`
-- `let name = expr;`
-- `name = expr;`
-- `if (cond) { ... } else { ... }`
-- `while (cond) { ... }`
-- `for (init; cond; inc) { ... }`
-- `{ stmt; stmt; }` (block)
-
+- `print expr`
+- `let name = expr`
+- `name = expr`
+- `if cond\n    ...` (indented block)
+- `else\n    ...` (indented block)
+- `while cond\n    ...` (indented block)
+- `for init\ncond\ninc\n    ...` (indented block)
+- Statements terminated by newlines (semicolons optional for backward compatibility)
 ## Status
 
 | Component | Status |
