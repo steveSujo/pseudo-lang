@@ -14,8 +14,19 @@ A Rust implementation of the Lox language from "Crafting Interpreters" with a Le
 - **Functions & Closures**: `fn name(params) => expr` or `fn name(params) { body }`
 - **REPL**: Interactive mode with `./target/release/psudo -i`
 - **LSP Server**: `./target/release/psudo --lsp` — hover, completion, diagnostics, semantic tokens
+- **pIR (Pseudo Intermediate Representation)**: `./target/release/psudo --pir -f scripts/hello.pir` — LLM-optimized hyper-compressed bytecode-style text format with single-character opcodes (`v`, `=`, `p`, `?`, `w`, `f`, `r`, `c`, `m`) and strict prefix notation (`(+ a b)`, `(add 2 3)`)
 
 ## Quick Start
+
+```bash
+# Build
+cargo build --release
+
+# Run standard file
+./target/release/psudo -f scripts/hello.psudo
+
+# Run pIR (Pseudo Intermediate Representation) file
+./target/release/psudo --pir -f scripts/hello.pir
 
 ```bash
 # Build
