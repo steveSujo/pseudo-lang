@@ -9,6 +9,7 @@ use tower_lsp::{Client, LanguageServer};
 
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::resolver::Resolver;
 use crate::tokens::{Token, TokenType};
 
 /// Document state stored by the LSP server
@@ -19,6 +20,7 @@ pub struct Document {
     pub text: String,
     pub tokens: Vec<Token>,
     pub parse_errors: Vec<String>,
+    pub resolver_errors: Vec<crate::resolver::ResolverError>,
 }
 
 /// The backend state for the LSP server
@@ -36,13 +38,13 @@ impl Backend {
         }
     }
 
-    /// Lex and parse a document, storing tokens and errors
-    async fn analyze_document(&self, _uri: &str, text: &str) -> (Vec<Token>, Vec<String>) {
+    /// Lex, parse, and resolve a document, storing tokens and errors
+    async fn analyze_document(&self, _uri: &str, text: &str) -> (Vec<Token>, Vec<String>, Vec<crate::resolver::ResolverError>) {
         let mut lexer = Lexer::new(text.to_string());
         let tokens = match lexer.scan_tokens() {
             Ok(tokens) => tokens,
             Err(e) => {
-                return (vec![], vec![format!("Lexer error: {}", e)]);
+                return (vec![], vec![format!("Lexer error: {}", e)], vec![]);
             }
         };
 
@@ -50,16 +52,26 @@ impl Backend {
         let parse_result = parser.parse();
 
         let mut parse_errors = Vec::new();
-        if let Err(e) = parse_result {
-            parse_errors.push(format!("Parser error: {}", e));
+        let mut statements = Vec::new();
+        match parse_result {
+            Ok(stmts) => statements = stmts,
+            Err(e) => parse_errors.push(format!("Parser error: {}", e)),
         }
 
-        (tokens, parse_errors)
+        // Run resolver for static analysis
+        let mut resolver_errors = Vec::new();
+        if parse_errors.is_empty() {
+            let resolver = Resolver::new();
+            let resolver_result = resolver.resolve(&statements);
+            resolver_errors = resolver_result.errors;
+        }
+
+        (tokens, parse_errors, resolver_errors)
     }
 
     /// Update document and trigger diagnostics
     pub async fn update_document(&self, uri: String, version: i32, text: String) {
-        let (tokens, parse_errors) = self.analyze_document(&uri, &text).await;
+        let (tokens, parse_errors, resolver_errors) = self.analyze_document(&uri, &text).await;
 
         let doc = Document {
             uri: uri.clone(),
@@ -67,12 +79,12 @@ impl Backend {
             text,
             tokens,
             parse_errors,
+            resolver_errors,
         };
 
         self.documents.lock().await.insert(uri.clone(), doc);
         self.check_diagnostics(&uri).await;
     }
-
     /// Get document by URI
     pub async fn get_document(&self, uri: &str) -> Option<Document> {
         self.documents.lock().await.get(uri).cloned()
@@ -106,7 +118,24 @@ impl Backend {
             });
         }
 
-        // TODO: Add semantic diagnostics (undefined variables, type errors, etc.)
+        // Add resolver errors (static analysis)
+        for error in &doc.resolver_errors {
+            diagnostics.push(Diagnostic {
+                range: Range {
+                    start: Position {
+                        line: (error.line as u32).saturating_sub(1),
+                        character: (error.column as u32).saturating_sub(1),
+                    },
+                    end: Position {
+                        line: (error.line as u32).saturating_sub(1),
+                        character: error.column as u32,
+                    },
+                },
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: error.message.clone(),
+                ..Default::default()
+            });
+        }
 
         // Publish diagnostics
         let client_guard = self.client.lock().await;

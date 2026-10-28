@@ -4,6 +4,7 @@ use psudo::{
     lsp::start_server,
     ownership::{BorrowChecker, CheckedEnvironment},
     parser::{CheckedInterpret, Interpret, Parser},
+    resolver::Resolver,
 };
 use std::{
     cell::RefCell,
@@ -260,38 +261,50 @@ fn run_source(source: &str, config: &Config) {
     }
 
     let mut parser = Parser::new(tokens);
-    match parser.parse() {
-        Ok(statements) => {
-            if config.show_ast && !config.quiet {
-                println!("🌳 AST:");
-                for stmt in &statements {
-                    println!("  {:?}", stmt);
-                }
-                println!();
-            }
-            let mut interpreter = match config.check_borrows {
-                true => InterpreterMode::Checked(CheckedInterpret {
-                    environment: Rc::new(RefCell::new(CheckedEnvironment::new(Rc::new(
-                        RefCell::new(BorrowChecker::new()),
-                    )))),
-                    check_borrows: true,
-                }),
-                false => InterpreterMode::Normal(Interpret::default()),
-            };
-            for stmt in statements {
-                match &mut interpreter {
-                    InterpreterMode::Checked(ci) => {
-                        ci.execute(&stmt);
-                    }
-                    InterpreterMode::Normal(ni) => {
-                        ni.execute(&stmt);
-                    }
-                }
-            }
-        }
+    let statements = match parser.parse() {
+        Ok(statements) => statements,
         Err(err) => {
             eprintln!("Parse error: {}", err);
             process::exit(1);
+        }
+    };
+    
+    // Run resolver for static analysis
+    let resolver = Resolver::new();
+    let resolver_result = resolver.resolve(&statements);
+    
+    // Report resolver errors
+    if !resolver_result.errors.is_empty() {
+        for error in &resolver_result.errors {
+            eprintln!("Resolver error [line {}, col {}]: {}", error.line, error.column, error.message);
+        }
+        // Continue anyway - interpreter will also catch these
+    }
+    
+    if config.show_ast && !config.quiet {
+        println!("🌳 AST:");
+        for stmt in &statements {
+            println!("  {:?}", stmt);
+        }
+        println!();
+    }
+    let mut interpreter = match config.check_borrows {
+        true => InterpreterMode::Checked(CheckedInterpret {
+            environment: Rc::new(RefCell::new(CheckedEnvironment::new(Rc::new(
+                RefCell::new(BorrowChecker::new()),
+            )))),
+            check_borrows: true,
+        }),
+        false => InterpreterMode::Normal(Interpret::default()),
+    };
+    for stmt in statements {
+        match &mut interpreter {
+            InterpreterMode::Checked(ci) => {
+                ci.execute(&stmt);
+            }
+            InterpreterMode::Normal(ni) => {
+                ni.execute(&stmt);
+            }
         }
     }
 }

@@ -128,6 +128,9 @@ pub enum Expression {
     Index(Box<Expression>, Box<Expression>),
     Object(Vec<(String, Expression)>),
     Get(Box<Expression>, String),
+    Set(Box<Expression>, String, Box<Expression>),
+    This,
+    Super(String), // super.method()
     Function(Vec<String>, Box<Statment>),
     Return(Option<Box<Expression>>),
 }
@@ -146,6 +149,9 @@ pub trait ExpressionVisitor<T> {
     fn visit_index(&mut self, object: &Expression, index: &Expression) -> T;
     fn visit_object(&mut self, fields: &[(String, Expression)]) -> T;
     fn visit_get(&mut self, object: &Expression, name: &str) -> T;
+    fn visit_set(&mut self, object: &Expression, name: &str, value: &Expression) -> T;
+    fn visit_this(&mut self) -> T;
+    fn visit_super(&mut self, method: &str) -> T;
     fn visit_function(&mut self, params: &[String], body: &Statment) -> T;
     fn visit_return(&mut self, value: &Option<Box<Expression>>) -> T;
 }
@@ -340,6 +346,9 @@ impl CheckedInterpret {
             Expression::Index(object, index) => self.visit_index(object, index),
             Expression::Object(fields) => self.visit_object(fields),
             Expression::Get(object, name) => self.visit_get(object, name),
+            Expression::Set(object, name, value) => self.visit_set(object, name, value),
+            Expression::This => self.visit_this(),
+            Expression::Super(method) => self.visit_super(method),
             Expression::Function(params, body) => self.visit_function(params, body),
             Expression::Return(value) => self.visit_return(value),
         }
@@ -548,8 +557,27 @@ impl ExpressionVisitor<DataTypes> for CheckedInterpret {
             DataTypes::Number(0.0)
         }
     }
-}
 
+    fn visit_set(&mut self, object: &Expression, name: &str, value: &Expression) -> DataTypes {
+        let obj = self.visit_expr(object);
+        let val = self.visit_expr(value);
+        match obj {
+            DataTypes::Object(mut map) => {
+                map.insert(name.to_string(), val.clone());
+                val
+            }
+            _ => DataTypes::Str("Not an object".to_string()),
+        }
+    }
+
+    fn visit_this(&mut self) -> DataTypes {
+        DataTypes::Str("this not bound".to_string())
+    }
+
+    fn visit_super(&mut self, method: &str) -> DataTypes {
+        DataTypes::Str(format!("super.{} not bound", method))
+    }
+}
 impl ExpressionVisitor<DataTypes> for Interpret {
     fn visit_binary(
         &mut self,
@@ -1021,6 +1049,26 @@ impl ExpressionVisitor<DataTypes> for Interpret {
             None => DataTypes::Number(0.0),
         }
     }
+
+    fn visit_set(&mut self, object: &Expression, name: &str, value: &Expression) -> DataTypes {
+        let obj = self.visit_expr(object);
+        let val = self.visit_expr(value);
+        match obj {
+            DataTypes::Object(mut map) => {
+                map.insert(name.to_string(), val.clone());
+                val
+            }
+            _ => DataTypes::Str("Not an object".to_string()),
+        }
+    }
+
+    fn visit_this(&mut self) -> DataTypes {
+        DataTypes::Str("this not bound".to_string())
+    }
+
+    fn visit_super(&mut self, method: &str) -> DataTypes {
+        DataTypes::Str(format!("super.{} not bound", method))
+    }
 }
 
 impl Interpret {
@@ -1036,6 +1084,9 @@ impl Interpret {
             Expression::Index(object, index) => self.visit_index(object, index),
             Expression::Object(fields) => self.visit_object(fields),
             Expression::Get(object, name) => self.visit_get(object, name),
+            Expression::Set(object, name, value) => self.visit_set(object, name, value),
+            Expression::This => self.visit_this(),
+            Expression::Super(method) => self.visit_super(method),
             Expression::Function(params, body) => self.visit_function(params, body),
             Expression::Return(value) => self.visit_return(value),
         }
@@ -1192,6 +1243,18 @@ impl ExpressionVisitor<String> for PrettyPrint {
             None => "(return)".to_string(),
         }
     }
+
+    fn visit_set(&mut self, object: &Expression, name: &str, value: &Expression) -> String {
+        format!("(set {} {} {})", self.visit_expr(object.clone()), name, self.visit_expr(value.clone()))
+    }
+
+    fn visit_this(&mut self) -> String {
+        "(this)".to_string()
+    }
+
+    fn visit_super(&mut self, method: &str) -> String {
+        format!("(super.{})", method)
+    }
 }
 
 impl PrettyPrint {
@@ -1207,6 +1270,9 @@ impl PrettyPrint {
             Expression::Index(object, index) => self.visit_index(&object, &index),
             Expression::Object(fields) => self.visit_object(&fields),
             Expression::Get(object, name) => self.visit_get(&object, &name),
+            Expression::Set(object, name, value) => self.visit_set(&object, &name, &value),
+            Expression::This => self.visit_this(),
+            Expression::Super(method) => self.visit_super(&method),
             Expression::Function(params, body) => self.visit_function(&params, &body),
             Expression::Return(value) => self.visit_return(&value),
         }

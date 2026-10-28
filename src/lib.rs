@@ -5,6 +5,7 @@ pub mod lexer;
 pub mod lsp;
 pub mod ownership;
 pub mod parser;
+pub mod resolver;
 pub mod tokens {
     use std::fmt::{self, Display};
 
