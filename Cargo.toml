@@ -13,14 +13,6 @@ lsp-types = { version = "0.95", features = [] }
 tower = "0.4"
 tower-service = "0.3"
 toml = "0.8"
-cranelift-codegen = { version = "0.109", features = ["default"] }
-cranelift-frontend = { version = "0.109", features = ["default"] }
-cranelift-module = { version = "0.109", features = ["default"] }
-cranelift-native = { version = "0.109", features = ["default"] }
-cranelift-object = "0.109"
-target-lexicon = "0.12"
-object = "0.32"
-goblin = "0.7"
 
 [[test]]
 name = "integration_tests"
@@ -28,7 +20,3 @@ path = "tests/integration_tests.rs"
 
 [[test]]
 name = "lsp_tests"
-
-[[test]]
-name = "codegen_tests"
-path = "tests/codegen_tests.rs"
