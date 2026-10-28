@@ -12,7 +12,7 @@ for f in scripts/*.psudo; do
     echo "----------------------------------------"
     echo "Running: $f"
     echo "----------------------------------------"
-    cargo run -- -f "$f"
+    ./target/release/psudo -f "$f"
 done
 
 echo
